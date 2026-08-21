@@ -1,0 +1,18 @@
+{
+  "$schema": "https://rcade.dev/manifest.schema.json",
+  "name": "super-snack-bros",
+  "display_name": "Super Snack Bros",
+  "description": "Fight your friends to get snacks from the snacktopus.",
+  "visibility": "public",
+  "authors": [
+    {
+      "display_name": "Matthew Madden"
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@rcade/input-classic",
+      "version": "1.0.0"
+    }
+  ]
+}

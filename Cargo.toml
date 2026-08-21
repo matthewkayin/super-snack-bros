@@ -1,0 +1,21 @@
+[package]
+name = "super-snack-bros"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = [
+    "console",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "CssStyleDeclaration",
+    "Window",
+] }
+rcade-plugin-input-classic = "0.2.0"
