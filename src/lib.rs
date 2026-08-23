@@ -1,17 +1,27 @@
 mod constants;
 mod game;
+mod sprite;
 
 use constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d, HtmlImageElement, Event};
+use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d};
 use std::rc::Rc;
 use std::cell::{RefCell};
 use game::GameState;
+use sprite::{SpriteData, SpriteName};
+use strum::IntoEnumIterator;
 
 struct Renderer {
     context: CanvasRenderingContext2d,
-    sprite_crab: HtmlImageElement
+    sprite_data: Vec<SpriteData>
+}
+
+struct RenderSpriteParams {
+    sprite_name: SpriteName,
+    x: f32,
+    y: f32,
+    h_frame: u32,
+    v_frame: u32
 }
 
 async fn run() -> Result<(), JsValue> {
@@ -24,13 +34,16 @@ async fn run() -> Result<(), JsValue> {
     let context = canvas.get_context("2d").unwrap().unwrap()
         .dyn_into::<CanvasRenderingContext2d>().unwrap();
 
-    // Load images
-    let sprite_crab = load_image("res/crab.png").await?;
+    // Load sprites
+    let mut sprite_data = Vec::new();
+    for sprite_name in SpriteName::iter() {
+        sprite_data.push(sprite::load(sprite_name).await?);
+    }
 
     // Bundle renderer
     let renderer = Renderer {
         context,
-        sprite_crab
+        sprite_data: sprite_data
     };
 
     // Init game state
@@ -72,34 +85,6 @@ async fn run() -> Result<(), JsValue> {
     Ok(())
 }
 
-async fn load_image(path: &str) -> Result<HtmlImageElement, JsValue> {
-    let image = HtmlImageElement::new()?;
-    let image_for_load = image.clone();
-
-    let promise = web_sys::js_sys::Promise::new(&mut move |resolve, reject| {
-        let success_image = image_for_load.clone();
-
-        let onload = Closure::once(move |_e: Event| {
-            let _ = resolve.call1(&JsValue::NULL, success_image.as_ref());
-        });
-        let onerror = Closure::once(move |_e: Event| {
-            let _ = reject.call1(&JsValue::NULL, &JsValue::from_str("Failed to load image."));
-        });
-
-        image_for_load.set_onload(Some(onload.as_ref().unchecked_ref()));
-        image_for_load.set_onerror(Some(onerror.as_ref().unchecked_ref()));
-
-        onload.forget();
-        onerror.forget();
-    });
-
-    image.set_src(path);
-    JsFuture::from(promise).await?;
-
-    Ok(image)
-}
-
-
 #[wasm_bindgen(start)]
 pub fn main() -> Result<(), JsValue> {
     web_sys::console::debug_1(&"Main started!".into());
@@ -128,7 +113,29 @@ fn render(renderer: &Renderer, state: &GameState) {
     renderer.context.set_fill_style_str("#000000");
     renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
 
-    renderer.context.set_fill_style_str("#ffffff");
-    renderer.context.draw_image_with_html_image_element(&renderer.sprite_crab, 0.0, 0.0).unwrap();
-    // context.fill_rect(state.rect_x as f64, state.rect_y as f64, game::RECT_SIZE as f64, game::RECT_SIZE as f64);
+    render_sprite(renderer, &RenderSpriteParams {
+        sprite_name: SpriteName::Crab,
+        x: 10.0,
+        y: 10.0,
+        h_frame: 0,
+        v_frame: 0
+    });
+}
+
+fn render_sprite(renderer: &Renderer, params: &RenderSpriteParams) {
+    let sprite_data: &SpriteData = &renderer.sprite_data[params.sprite_name as usize];
+    let result = renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+        &sprite_data.image,
+        (params.h_frame * sprite_data.frame_width) as f64,
+        (params.v_frame * sprite_data.frame_height) as f64,
+        sprite_data.frame_width as f64,
+        sprite_data.frame_height as f64,
+        params.x as f64,
+        params.y as f64,
+        sprite_data.frame_width as f64,
+        sprite_data.frame_height as f64);
+    match result {
+        Ok(_) => {},
+        Err(js_value) => web_sys::console::error_1(&js_value)
+    }
 }

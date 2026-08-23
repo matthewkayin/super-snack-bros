@@ -20,4 +20,6 @@ web-sys = { version = "0.3", features = [
     "CssStyleDeclaration",
     "Window",
 ] }
+strum = "0.28"
+strum_macros = "0.28"
 rcade-plugin-input-classic = "0.2.0"
