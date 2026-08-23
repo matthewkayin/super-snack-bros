@@ -3,44 +3,35 @@ mod game;
 
 use constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d, HtmlImageElement};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d, HtmlImageElement, Event};
 use std::rc::Rc;
-use std::cell::{RefCell, Cell};
+use std::cell::{RefCell};
 use game::GameState;
 
-#[wasm_bindgen(start)]
-pub fn main() -> Result<(), JsValue> {
-    web_sys::console::debug_1(&"Main started!".into());
+struct Renderer {
+    context: CanvasRenderingContext2d,
+    sprite_crab: HtmlImageElement
+}
 
-    // INIT
-
+async fn run() -> Result<(), JsValue> {
     // Get the global window and document objects
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
     let canvas = document.get_element_by_id("game-canvas")
         .unwrap().dyn_into::<HtmlCanvasElement>()?;
 
-    web_sys::console::debug_1(&"Created HTML canvas.".into());
-
     let context = canvas.get_context("2d").unwrap().unwrap()
         .dyn_into::<CanvasRenderingContext2d>().unwrap();
 
     // Load images
+    let sprite_crab = load_image("res/crab.png").await?;
 
-    let image_element = HtmlImageElement::new()?;
-    let image_loaded = Rc::new(Cell::new(false));
-    let image_loaded_clone = image_loaded.clone();
-    let image_onload_closure = Closure::<dyn FnMut()>::new(move || {
-        image_loaded_clone.set(true);
-        web_sys::console::debug_1(&"Loaded image.".into());
-    });
-    image_element.set_onload(Some(image_onload_closure.as_ref().unchecked_ref()));
-    image_onload_closure.forget();
-    image_element.set_src("res/crab.png");
-
-    web_sys::console::debug_1(&"Loading image...".into());
-
-    // TODO: make this more general purpose and wait until loading is finished before rendering or updating
+    // Bundle renderer
+    let renderer = Renderer {
+        context,
+        sprite_crab
+    };
 
     // Init game state
 
@@ -67,7 +58,7 @@ pub fn main() -> Result<(), JsValue> {
             accumulator -= UPDATE_DURATION;
         }
 
-        render(&context, &state, &image_element);
+        render(&renderer, &state);
 
         // Schedule next frame
         request_animation_frame(f_for_loop.borrow().as_ref().unwrap());
@@ -77,6 +68,47 @@ pub fn main() -> Result<(), JsValue> {
     web_sys::window().unwrap().request_animation_frame(
         g.borrow().as_ref().unwrap().as_ref().unchecked_ref(),
     )?;
+
+    Ok(())
+}
+
+async fn load_image(path: &str) -> Result<HtmlImageElement, JsValue> {
+    let image = HtmlImageElement::new()?;
+    let image_for_load = image.clone();
+
+    let promise = web_sys::js_sys::Promise::new(&mut move |resolve, reject| {
+        let success_image = image_for_load.clone();
+
+        let onload = Closure::once(move |_e: Event| {
+            let _ = resolve.call1(&JsValue::NULL, success_image.as_ref());
+        });
+        let onerror = Closure::once(move |_e: Event| {
+            let _ = reject.call1(&JsValue::NULL, &JsValue::from_str("Failed to load image."));
+        });
+
+        image_for_load.set_onload(Some(onload.as_ref().unchecked_ref()));
+        image_for_load.set_onerror(Some(onerror.as_ref().unchecked_ref()));
+
+        onload.forget();
+        onerror.forget();
+    });
+
+    image.set_src(path);
+    JsFuture::from(promise).await?;
+
+    Ok(image)
+}
+
+
+#[wasm_bindgen(start)]
+pub fn main() -> Result<(), JsValue> {
+    web_sys::console::debug_1(&"Main started!".into());
+
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Err(err) = run().await {
+            web_sys::console::error_1(&err);
+        }
+    });
 
     Ok(())
 }
@@ -92,11 +124,11 @@ fn update(state: &mut GameState) {
     state.update();
 }
 
-fn render(context: &CanvasRenderingContext2d, state: &GameState, image: &HtmlImageElement) {
-    context.set_fill_style_str("#000000");
-    context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
+fn render(renderer: &Renderer, state: &GameState) {
+    renderer.context.set_fill_style_str("#000000");
+    renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
 
-    context.set_fill_style_str("#ffffff");
-    context.draw_image_with_html_image_element(image, 0.0, 0.0).unwrap();
+    renderer.context.set_fill_style_str("#ffffff");
+    renderer.context.draw_image_with_html_image_element(&renderer.sprite_crab, 0.0, 0.0).unwrap();
     // context.fill_rect(state.rect_x as f64, state.rect_y as f64, game::RECT_SIZE as f64, game::RECT_SIZE as f64);
 }
