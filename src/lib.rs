@@ -1,6 +1,7 @@
 mod constants;
 mod game;
 mod sprite;
+mod animation;
 
 use constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use wasm_bindgen::prelude::*;
@@ -13,7 +14,7 @@ use strum::IntoEnumIterator;
 
 struct Renderer {
     context: CanvasRenderingContext2d,
-    sprite_data: Vec<SpriteData>
+    sprite_data: Vec<SpriteData>,
 }
 
 struct RenderSpriteParams {
@@ -110,15 +111,15 @@ fn update(state: &mut GameState) {
 }
 
 fn render(renderer: &Renderer, state: &GameState) {
-    renderer.context.set_fill_style_str("#000000");
+    renderer.context.set_fill_style_str("#f0f0f0");
     renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
 
     render_sprite(renderer, &RenderSpriteParams {
         sprite_name: SpriteName::Crab,
         x: 10.0,
         y: 10.0,
-        h_frame: 0,
-        v_frame: 0
+        h_frame: state.crab_anim.h_frame,
+        v_frame: state.crab_anim.v_frame
     });
 }
 
