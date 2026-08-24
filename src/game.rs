@@ -1,7 +1,9 @@
 // use crate::constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use crate::{animation::{ANIMATION_CRAB_IDLE, AnimationInstance}, constants::SCREEN_HEIGHT};
+use crate::input::{Input, InputAction};
 use glam::Vec2;
 
+const FIGHTER_WALK_SPEED: f32 = 1.0;
 const FIGHTER_FALL_SPEED: f32 = 1.0;
 
 struct Rect {
@@ -42,12 +44,6 @@ impl Fighter {
     }
 
     fn update(&mut self) {
-        self.position.y += FIGHTER_FALL_SPEED;
-
-        let collide_rect = self.get_collide_rect();
-        if self.position.y + collide_rect.position.y + collide_rect.size.y > SCREEN_HEIGHT {
-            self.position.y = SCREEN_HEIGHT - collide_rect.size.y - collide_rect.position.y;
-        }
     }
 
     fn get_collide_rect(&self) -> Rect {
@@ -71,8 +67,16 @@ impl GameState {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, input: &Input) {
         self.crab_anim.update();
-        self.crab.update();
+        if input.is_action_pressed(InputAction::PlayerOneRight) {
+            self.crab.position.x += FIGHTER_WALK_SPEED;
+        }
+        self.crab.position.y += FIGHTER_FALL_SPEED;
+
+        let collide_rect = self.crab.get_collide_rect();
+        if self.crab.position.y + collide_rect.position.y + collide_rect.size.y > SCREEN_HEIGHT {
+            self.crab.position.y = SCREEN_HEIGHT - collide_rect.size.y - collide_rect.position.y;
+        }
     }
 }

@@ -2,6 +2,7 @@ mod constants;
 mod game;
 mod render;
 mod animation;
+mod input;
 
 use wasm_bindgen::prelude::*;
 use std::rc::Rc;
@@ -12,6 +13,10 @@ use game::GameState;
 async fn run() -> Result<(), JsValue> {
     let mut renderer = Renderer::new();
     renderer.load_sprites().await;
+
+    web_sys::console::debug_1(&"Awaiting input".into());
+    let input = input::init().await;
+    web_sys::console::debug_1(&"Done".into());
 
     // Init game state
 
@@ -32,9 +37,11 @@ async fn run() -> Result<(), JsValue> {
         let elapsed = current_time - last_time;
         last_time = current_time;
         accumulator += elapsed;
+        let message = format!("Elapsed {}", elapsed);
+        web_sys::console::debug_1(&message.into());
 
         while accumulator >= UPDATE_DURATION {
-            update(&mut state);
+            state.update(&input);
             accumulator -= UPDATE_DURATION;
         }
 
@@ -72,11 +79,9 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
         .unwrap();
 }
 
-fn update(state: &mut GameState) {
-    state.update();
-}
-
 fn render(renderer: &Renderer, state: &GameState) {
     renderer.render_clear();
     renderer.render_sprite(SpriteName::Crab, state.crab.position, state.crab_anim.h_frame, state.crab_anim.v_frame);
+    let message = format!("Crab position {}", state.crab.position);
+    web_sys::console::debug_1(&message.into());
 }
