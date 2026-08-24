@@ -1,51 +1,17 @@
 mod constants;
 mod game;
-mod sprite;
+mod render;
 mod animation;
 
-use constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d};
 use std::rc::Rc;
 use std::cell::{RefCell};
+use render::{Renderer, SpriteName};
 use game::GameState;
-use sprite::{SpriteData, SpriteName};
-use strum::IntoEnumIterator;
-
-struct Renderer {
-    context: CanvasRenderingContext2d,
-    sprite_data: Vec<SpriteData>,
-}
-
-struct RenderSpriteParams {
-    sprite_name: SpriteName,
-    x: f32,
-    y: f32,
-    h_frame: u32,
-    v_frame: u32
-}
 
 async fn run() -> Result<(), JsValue> {
-    // Get the global window and document objects
-    let window = web_sys::window().unwrap();
-    let document = window.document().unwrap();
-    let canvas = document.get_element_by_id("game-canvas")
-        .unwrap().dyn_into::<HtmlCanvasElement>()?;
-
-    let context = canvas.get_context("2d").unwrap().unwrap()
-        .dyn_into::<CanvasRenderingContext2d>().unwrap();
-
-    // Load sprites
-    let mut sprite_data = Vec::new();
-    for sprite_name in SpriteName::iter() {
-        sprite_data.push(sprite::load(sprite_name).await?);
-    }
-
-    // Bundle renderer
-    let renderer = Renderer {
-        context,
-        sprite_data: sprite_data
-    };
+    let mut renderer = Renderer::new();
+    renderer.load_sprites().await;
 
     // Init game state
 
@@ -111,32 +77,6 @@ fn update(state: &mut GameState) {
 }
 
 fn render(renderer: &Renderer, state: &GameState) {
-    renderer.context.set_fill_style_str("#f0f0f0");
-    renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
-
-    render_sprite(renderer, &RenderSpriteParams {
-        sprite_name: SpriteName::Crab,
-        x: 10.0,
-        y: 10.0,
-        h_frame: state.crab_anim.h_frame,
-        v_frame: state.crab_anim.v_frame
-    });
-}
-
-fn render_sprite(renderer: &Renderer, params: &RenderSpriteParams) {
-    let sprite_data: &SpriteData = &renderer.sprite_data[params.sprite_name as usize];
-    let result = renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-        &sprite_data.image,
-        (params.h_frame * sprite_data.frame_width) as f64,
-        (params.v_frame * sprite_data.frame_height) as f64,
-        sprite_data.frame_width as f64,
-        sprite_data.frame_height as f64,
-        params.x as f64,
-        params.y as f64,
-        sprite_data.frame_width as f64,
-        sprite_data.frame_height as f64);
-    match result {
-        Ok(_) => {},
-        Err(js_value) => web_sys::console::error_1(&js_value)
-    }
+    renderer.render_clear();
+    renderer.render_sprite(SpriteName::Crab, state.crab.position, state.crab_anim.h_frame, state.crab_anim.v_frame);
 }
