@@ -1,0 +1,12 @@
+[
+  {
+    "label": "Build",
+    "command": "cargo build"
+  },
+  {
+    "label": "Launch Game",
+    "command": "trap 'kill 0' EXIT; trunk serve & rcade dev http://localhost:8080 & wait",
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  }
+]

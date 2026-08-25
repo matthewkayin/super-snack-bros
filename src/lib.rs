@@ -1,26 +1,28 @@
 mod constants;
 mod game;
-mod render;
-mod animation;
-mod input;
+mod core;
 
 use wasm_bindgen::prelude::*;
 use std::rc::Rc;
 use std::cell::{RefCell};
-use render::{Renderer, SpriteName};
+use core::render::*;
+use core::input::*;
+use core::animation::*;
 use game::GameState;
 
 async fn run() -> Result<(), JsValue> {
-    let mut renderer = Renderer::new();
-    renderer.load_sprites().await;
+    render_init().await;
+    web_sys::console::debug_1(&"Initialized renderer.".into());
 
-    web_sys::console::debug_1(&"Awaiting input".into());
-    let input = input::init().await;
-    web_sys::console::debug_1(&"Done".into());
+    input_init().await;
+    web_sys::console::debug_1(&"Initialized input.".into());
+
+    animation_init();
+    web_sys::console::debug_1(&"Initialized animation.".into());
 
     // Init game state
 
-    let mut state = GameState::new();
+    let mut game_state = GameState::new();
 
     // GAME LOOP
 
@@ -37,15 +39,15 @@ async fn run() -> Result<(), JsValue> {
         let elapsed = current_time - last_time;
         last_time = current_time;
         accumulator += elapsed;
-        let message = format!("Elapsed {}", elapsed);
-        web_sys::console::debug_1(&message.into());
 
         while accumulator >= UPDATE_DURATION {
-            state.update(&input);
+            input_update();
+            game_state.update();
             accumulator -= UPDATE_DURATION;
         }
 
-        render(&renderer, &state);
+        render_clear();
+        game_state.render();
 
         // Schedule next frame
         request_animation_frame(f_for_loop.borrow().as_ref().unwrap());
@@ -77,11 +79,4 @@ fn request_animation_frame(f: &Closure<dyn FnMut(f64)>) {
         .unwrap()
         .request_animation_frame(f.as_ref().unchecked_ref())
         .unwrap();
-}
-
-fn render(renderer: &Renderer, state: &GameState) {
-    renderer.render_clear();
-    renderer.render_sprite(SpriteName::Crab, state.crab.position, state.crab_anim.h_frame, state.crab_anim.v_frame);
-    let message = format!("Crab position {}", state.crab.position);
-    web_sys::console::debug_1(&message.into());
 }

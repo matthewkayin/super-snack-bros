@@ -1,23 +1,14 @@
-// use crate::constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
-use crate::{animation::{ANIMATION_CRAB_IDLE, AnimationInstance}, constants::SCREEN_HEIGHT};
-use crate::input::{Input, InputAction};
+use crate::constants::{SCREEN_WIDTH, SCREEN_HEIGHT};
+use crate::core::animation::*;
+use crate::core::input::*;
+use crate::core::render::*;
 use glam::Vec2;
 
-const FIGHTER_WALK_SPEED: f32 = 1.0;
-const FIGHTER_FALL_SPEED: f32 = 1.0;
+// RECT
 
 struct Rect {
     position: Vec2,
     size: Vec2
-}
-
-enum FighterMode {
-    Idle,
-    Walk
-}
-
-pub struct Fighter {
-    pub position: Vec2
 }
 
 impl Rect {
@@ -36,14 +27,39 @@ impl Rect {
     }
 }
 
+// FIGHTER
+
+const FIGHTER_WALK_SPEED: f32 = 1.0;
+const FIGHTER_FALL_SPEED: f32 = 1.0;
+
+enum FighterMode {
+    Idle,
+    Walk
+}
+
+pub struct Fighter {
+    mode: FighterMode,
+    pub animation: AnimationInstance,
+    pub position: Vec2
+}
+
 impl Fighter {
     fn new() -> Self {
         Fighter {
+            mode: FighterMode::Idle,
+            animation: Animation::CrabIdle.instance(),
             position: Vec2::new(10.0, 10.0)
         }
     }
 
     fn update(&mut self) {
+    }
+
+    fn get_expected_animation(&self) -> &Animation {
+        match self.mode {
+            FighterMode::Idle => &Animation::CrabIdle,
+            FighterMode::Walk => &Animation::CrabWalk,
+        }
     }
 
     fn get_collide_rect(&self) -> Rect {
@@ -62,14 +78,14 @@ pub struct GameState {
 impl GameState {
     pub fn new() -> Self {
         GameState {
-            crab_anim: ANIMATION_CRAB_IDLE.instance(),
+            crab_anim: Animation::CrabIdle.instance(),
             crab: Fighter::new()
         }
     }
 
-    pub fn update(&mut self, input: &Input) {
+    pub fn update(&mut self) {
         self.crab_anim.update();
-        if input.is_action_pressed(InputAction::PlayerOneRight) {
+        if input_is_action_pressed(InputAction::PlayerOneRight) {
             self.crab.position.x += FIGHTER_WALK_SPEED;
         }
         self.crab.position.y += FIGHTER_FALL_SPEED;
@@ -78,5 +94,9 @@ impl GameState {
         if self.crab.position.y + collide_rect.position.y + collide_rect.size.y > SCREEN_HEIGHT {
             self.crab.position.y = SCREEN_HEIGHT - collide_rect.size.y - collide_rect.position.y;
         }
+    }
+
+    pub fn render(&self) {
+        render_sprite(Sprite::Crab, self.crab.position, self.crab_anim.h_frame, self.crab_anim.v_frame);
     }
 }
