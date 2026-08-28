@@ -5,33 +5,40 @@ use crate::core::animation::*;
 use crate::core::render::*;
 use glam::Vec2;
 
-const FIGHTER_WALK_SPEED: f32 = 1.0;
-const FIGHTER_FALL_SPEED: f32 = 2.0;
 const FIGHTER_SPAWN_MARGIN: f32 = 32.0;
 
-const FIGHTER_JUMP_INPUT_DURATION: u32 = 5;
-const FIGHTER_CAYOTE_TIMER: u32 = 5;
-const FIGHTER_JUMP_MIN_DURATION: u32 = 5;
-const FIGHTER_JUMP_DURATION: u32 = 30;
-const FIGHTER_JUMP_SPEED: f32 = -4.0;
+const FIGHTER_WALK_SPEED: f32 = 2.0;
+const FIGHTER_WALK_ACCELERATION: f32 = 0.7;
+const FIGHTER_WALK_DECELERATION: f32 = 0.2;
+
+const FIGHTER_GRAVITY: f32 = 0.45;
+const FIGHTER_JUMP_ACCELERATION: f32 = -10.0;
+const FIGHTER_JUMP_SHORT_HOP_ACCELERATION: f32 = -8.0;
+const FIGHTER_FALL_SPEED: f32 = 3.0;
+
+const FIGHTER_JUMP_INPUT_DURATION: u32 = 10;
+const FIGHTER_CAYOTE_TIMER: u32 = 10;
+const FIGHTER_JUMP_SQUAT_DURATION: u32 = 5;
 
 #[derive(Debug, PartialEq, Eq)]
 enum FighterMode {
     Idle,
-    JumpBegin,
-    JumpContinue
+    JumpSquat
 }
 
 pub struct Fighter {
     player: InputPlayer,
     mode: FighterMode,
-    pub animation: AnimationInstance,
-    pub position: Vec2,
-    pub direction: f32,
+    animation: AnimationInstance,
 
+    position: Vec2,
+    velocity: Vec2,
+    direction: i32,
+
+    has_double_jump: bool,
     is_grounded: bool,
     jump_input_timer: u32,
-    cayote_timer: u32,
+    coyote_timer: u32,
     jump_timer: u32
 }
 
@@ -45,13 +52,16 @@ impl Fighter {
         Fighter {
             player,
             mode: FighterMode::Idle,
-            animation: Animation::CrabIdle.instance(),
-            position: Vec2::new(position_x, 0.0),
-            direction: 1.0,
 
+            animation: Animation::CrabIdle.instance(),
+            position: Vec2::new(position_x, SCREEN_HEIGHT - render_get_sprite_frame_size(Sprite::Crab).y),
+            velocity: Vec2::new(0.0, 0.0),
+            direction: if player == InputPlayer::One { 1 } else { -1 },
+
+            has_double_jump: false,
             is_grounded: false,
             jump_input_timer: 0,
-            cayote_timer: 0,
+            coyote_timer: 0,
             jump_timer: 0
         }
     }
@@ -72,47 +82,77 @@ impl Fighter {
 
         // When jump timer is non-zero and we can jump, begin jump
         if self.jump_input_timer != 0 {
-            if self.can_jump() {
+            if self.can_ground_jump() {
+                if !self.can_ground_jump() {
+                    self.has_double_jump = false;
+                }
+
                 // Begin jump
-                self.mode = FighterMode::JumpBegin;
+                self.mode = FighterMode::JumpSquat;
                 self.reset_animation();
                 self.jump_input_timer = 0;
+                self.jump_timer = FIGHTER_JUMP_SQUAT_DURATION;
+                self.coyote_timer = 0;
+            } else if self.has_double_jump {
+                self.jump();
+                self.has_double_jump = false;
             } else {
                 // Decrement timer
                 self.jump_input_timer -= 1;
             }
         }
 
-        // While beginning jumping, if the animation is finished, jump
-        if self.mode == FighterMode::JumpBegin {
-            self.mode = FighterMode::JumpContinue;
-            self.reset_animation();
-            self.jump_timer = FIGHTER_JUMP_DURATION;
-        }
-
         // While jumping, move up
-        if self.mode == FighterMode::JumpContinue {
-            if !input_is_action_pressed(self.player, InputAction::Up) &&
-                self.jump_timer < FIGHTER_JUMP_DURATION - FIGHTER_JUMP_MIN_DURATION
-            {
-                self.jump_timer = 0;
-            } else {
+        let jumped_this_frame = {
+            let mut jumped = false;
+            if self.mode == FighterMode::JumpSquat {
                 self.jump_timer -= 1;
+                if self.jump_timer == 0 {
+                    self.mode = FighterMode::Idle;
+                    self.jump_timer = 0;
+                    self.jump();
+                    jumped = true;
+                }
             }
 
-            if self.jump_timer == 0 {
-                self.mode = FighterMode::Idle;
-                self.reset_animation();
-            }
+            jumped
+        };
+
+        // Update direction
+        let di = self.get_directional_input();
+        if self.is_grounded && di != 0.0 {
+            self.direction = di as i32;
         }
 
         // Movement
-        let velocity_y = if self.mode == FighterMode::JumpContinue {
-            FIGHTER_JUMP_SPEED
-        } else {
-            FIGHTER_FALL_SPEED
-        };
-        self.position += Vec2::new(self.get_directional_input() * FIGHTER_WALK_SPEED, velocity_y);
+
+        // Turn around on the spot when grounded
+        if self.is_grounded &&
+            ((di == 1.0 && self.velocity.x < 0.0) ||
+            (di == -1.0 && self.velocity.x > 0.0))
+        {
+            self.velocity.x = 0.0;
+        }
+
+        // Deceleration
+        if di == 0.0 && self.velocity.x > 0.0 {
+            self.velocity.x = (self.velocity.x - FIGHTER_WALK_DECELERATION).max(0.0);
+        } else if di == 0.0 && self.velocity.x < 0.0 {
+            self.velocity.x = (self.velocity.x + FIGHTER_WALK_DECELERATION).min(0.0);
+        }
+
+        // Walk acceleration
+        if di == 1.0 && self.velocity.x < FIGHTER_WALK_SPEED {
+            self.velocity.x = (self.velocity.x + FIGHTER_WALK_ACCELERATION).min(FIGHTER_WALK_SPEED);
+        } else if di == -1.0 && self.velocity.x > -FIGHTER_WALK_SPEED {
+            self.velocity.x = (self.velocity.x - FIGHTER_WALK_ACCELERATION).max(-FIGHTER_WALK_SPEED);
+        }
+
+        self.velocity.y += FIGHTER_GRAVITY;
+        if self.velocity.y > FIGHTER_FALL_SPEED {
+            self.velocity.y = FIGHTER_FALL_SPEED;
+        }
+        self.position += self.velocity;
 
         // Floor collision
         let was_grounded = self.is_grounded;
@@ -124,16 +164,24 @@ impl Fighter {
         }
 
         // Cayote timer
-        if !self.is_grounded && was_grounded {
-            self.cayote_timer = FIGHTER_CAYOTE_TIMER;
+        if !self.is_grounded && was_grounded && !jumped_this_frame {
+            self.coyote_timer = FIGHTER_CAYOTE_TIMER;
         }
-        if self.cayote_timer != 0 {
-            self.cayote_timer -= 1;
+        if self.coyote_timer != 0 {
+            self.coyote_timer -= 1;
         }
+
+        // Reset jumps remaining
+        if self.is_grounded {
+            self.has_double_jump = true;
+        }
+
+        let message = format!("Velocity Y {}", self.velocity.y);
+        web_sys::console::debug_1(&message.into());
     }
 
-    fn can_jump(&self) -> bool {
-        (self.is_grounded || self.cayote_timer != 0) &&
+    fn can_ground_jump(&self) -> bool {
+        (self.is_grounded || self.coyote_timer != 0) &&
         self.mode == FighterMode::Idle
     }
 
@@ -152,28 +200,19 @@ impl Fighter {
     }
 
     fn get_expected_animation(&self) -> Animation {
-        match self.mode {
-            FighterMode::Idle => {
-                if !self.is_grounded {
-                    return Animation::CrabFall
-                }
-
-                let di = self.get_directional_input();
-                if di == self.direction {
-                    return Animation::CrabWalkForward
-                }
-                if di == -self.direction {
-                    return Animation::CrabWalkBackward
-                }
-                Animation::CrabIdle
-            },
-            FighterMode::JumpBegin => Animation::CrabJumpBegin,
-            FighterMode::JumpContinue => Animation::CrabFall,
+        if self.mode == FighterMode::JumpSquat {
+            return Animation::CrabJump;
         }
-    }
 
-    pub fn get_center(&self) -> Vec2 {
-        self.position + (render_get_sprite_frame_size(Sprite::Crab) / 2.0)
+        if !self.is_grounded {
+            return Animation::CrabFall
+        }
+
+        if self.velocity.x != 0.0 {
+            return Animation::CrabWalkForward
+        }
+
+        Animation::CrabIdle
     }
 
     fn get_collide_rect(&self) -> Rect {
@@ -183,7 +222,17 @@ impl Fighter {
         }
     }
 
+    fn jump(&mut self) {
+        let jump_impulse = if input_is_action_pressed(self.player, InputAction::Up) {
+            FIGHTER_JUMP_ACCELERATION
+        } else {
+            FIGHTER_JUMP_SHORT_HOP_ACCELERATION
+        };
+        self.velocity.y += jump_impulse;
+        self.velocity.y = self.velocity.y.max(FIGHTER_JUMP_ACCELERATION)
+    }
+
     pub fn render(&self) {
-        render_sprite(Sprite::Crab, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == -1.0);
+        render_sprite(Sprite::Crab, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == -1);
     }
 }

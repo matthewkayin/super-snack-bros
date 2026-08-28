@@ -2,6 +2,7 @@ mod constants;
 mod core;
 mod game;
 
+use std::panic;
 use wasm_bindgen::prelude::*;
 use std::rc::Rc;
 use std::cell::{RefCell};
@@ -11,6 +12,8 @@ use core::animation::*;
 use game::state::GameState;
 
 async fn run() -> Result<(), JsValue> {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
+
     render_init().await;
     web_sys::console::debug_1(&"Initialized renderer.".into());
 

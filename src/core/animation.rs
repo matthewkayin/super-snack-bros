@@ -8,8 +8,7 @@ const ANIMATION_LOOPS_INDEFINITELY: u32 = u32::MAX;
 pub enum Animation {
     CrabIdle,
     CrabWalkForward,
-    CrabWalkBackward,
-    CrabJumpBegin,
+    CrabJump,
     CrabFall,
     CrabPunch
 }
@@ -122,20 +121,9 @@ pub fn animation_init() {
         ]
     };
 
-    // Crab Walk Backward
-    animation_data[Animation::CrabWalkBackward as usize] = AnimationData {
+    // Crab Jump
+    animation_data[Animation::CrabJump as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
-        frames: vec![
-            AnimationFrame { h_frame: 0, v_frame: 0, duration: 8 },
-            AnimationFrame { h_frame: 5, v_frame: 0, duration: 8 },
-            AnimationFrame { h_frame: 6, v_frame: 0, duration: 8 },
-            AnimationFrame { h_frame: 7, v_frame: 0, duration: 8 }
-        ]
-    };
-
-    // Crab Jump Begin
-    animation_data[Animation::CrabJumpBegin as usize] = AnimationData {
-        loops: 1,
         frames: vec![
             AnimationFrame { h_frame: 8, v_frame: 0, duration: 8 }
         ]

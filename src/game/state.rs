@@ -16,19 +16,11 @@ impl GameState {
 
     pub fn update(&mut self) {
         self.player1.update();
-        self.player2.update();
-
-        if self.player1.get_center().x < self.player2.get_center().x {
-            self.player1.direction = 1.0;
-            self.player2.direction = -1.0;
-        } else {
-            self.player1.direction = -1.0;
-            self.player2.direction = 1.0;
-        }
+        // self.player2.update();
     }
 
     pub fn render(&self) {
         self.player1.render();
-        self.player2.render();
+        // self.player2.render();
     }
 }
