@@ -14,7 +14,7 @@ pub enum InputAction {
     B
 }
 
-#[derive(Debug, EnumCount, Copy, Clone)]
+#[derive(Debug, EnumCount, Copy, Clone, Eq, PartialEq)]
 #[repr(usize)]
 pub enum InputPlayer {
     One,

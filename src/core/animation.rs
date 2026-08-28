@@ -137,7 +137,7 @@ pub fn animation_init() {
     animation_data[Animation::CrabJumpBegin as usize] = AnimationData {
         loops: 1,
         frames: vec![
-            AnimationFrame { h_frame: 8, v_frame: 0, duration: 16 }
+            AnimationFrame { h_frame: 8, v_frame: 0, duration: 8 }
         ]
     };
 
@@ -145,7 +145,7 @@ pub fn animation_init() {
     animation_data[Animation::CrabFall as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
         frames: vec![
-            AnimationFrame { h_frame: 9, v_frame: 0, duration: 16 }
+            AnimationFrame { h_frame: 9, v_frame: 0, duration: 8 }
         ]
     };
 

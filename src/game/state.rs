@@ -18,7 +18,7 @@ impl GameState {
         self.player1.update();
         self.player2.update();
 
-        if self.player1.position.x < self.player2.position.x {
+        if self.player1.get_center().x < self.player2.get_center().x {
             self.player1.direction = 1.0;
             self.player2.direction = -1.0;
         } else {

@@ -4,7 +4,7 @@ use web_sys::{CanvasRenderingContext2d, Event, HtmlImageElement, HtmlCanvasEleme
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 use glam::Vec2;
-use std::sync::OnceLock;
+use std::cell::OnceCell;
 
 use crate::constants::{SCREEN_HEIGHT, SCREEN_WIDTH};
 
@@ -36,7 +36,7 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
     match sprite {
         Sprite::Crab => SpriteParams {
             path: "res/crab.png",
-            h_frames: 17,
+            h_frames: 13,
             v_frames: 1
         },
     }
@@ -85,7 +85,9 @@ async fn render_load_image(path: &str) -> Result<HtmlImageElement, JsValue> {
     Ok(image)
 }
 
-static RENDERER: OnceLock<Renderer> = OnceLock::new();
+thread_local! {
+    static RENDERER: OnceCell<Renderer> = OnceCell::new();
+}
 
 pub async fn render_init() {
     // Get the global window and document objects
@@ -102,46 +104,59 @@ pub async fn render_init() {
         sprite_data.push(render_load_sprite(sprite_name).await.unwrap());
     }
 
-    RENDERER.get_or_init(|| Renderer {
-        context,
-        sprite_data
+    RENDERER.with(|cell| {
+        cell.get_or_init(|| Renderer {
+            context,
+            sprite_data
+        });
     });
 }
 
+pub fn render_get_sprite_frame_size(sprite: Sprite) -> Vec2 {
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+        let sprite_data: &SpriteData = &renderer.sprite_data[sprite as usize];
+        Vec2::new(sprite_data.frame_width as f32, sprite_data.frame_height as f32)
+    })
+}
+
 pub fn render_clear() {
-    let renderer: &Renderer = RENDERER.get().unwrap();
-    renderer.context.set_fill_style_str("#f0f0f0");
-    renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+        renderer.context.set_fill_style_str("#f0f0f0");
+        renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
+    });
 }
 
 pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32, flip_h: bool) {
-    let renderer: &Renderer = RENDERER.get().unwrap();
-    let sprite_data: &SpriteData = &renderer.sprite_data[sprite as usize];
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+        let sprite_data: &SpriteData = &renderer.sprite_data[sprite as usize];
 
-    let mut position_x = position.x as f64;
-    let mut position_y = position.y as f64;
+        let mut position_x = position.x as f64;
+        let mut position_y = position.y as f64;
 
-    if flip_h {
-        renderer.context.save();
-        renderer.context.translate((position.x + SCREEN_WIDTH) as f64, position.y as f64).unwrap();
-        renderer.context.scale(-1.0, 1.0).unwrap();
-        position_x = 0.0;
-        position_y = 0.0;
-    }
-    let width_modifier: f64 = if flip_h { -1.0 } else { 1.0 };
+        if flip_h {
+            renderer.context.save();
+            renderer.context.translate(position_x + (sprite_data.frame_width as f64), position.y as f64).unwrap();
+            renderer.context.scale(-1.0, 1.0).unwrap();
+            position_x = 0.0;
+            position_y = 0.0;
+        }
 
-    renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-        &sprite_data.image, // Image
-        (h_frame * sprite_data.frame_width) as f64, // Source X
-        (v_frame * sprite_data.frame_height) as f64, // Source Y
-        sprite_data.frame_width as f64, // Source Width
-        sprite_data.frame_height as f64, // Source Height
-        position_x,
-        position_y,
-        sprite_data.frame_width as f64 * width_modifier, // Dest Width
-        sprite_data.frame_height as f64).unwrap(); // Dest Height
+        renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+            &sprite_data.image, // Image
+            (h_frame * sprite_data.frame_width) as f64, // Source X
+            (v_frame * sprite_data.frame_height) as f64, // Source Y
+            sprite_data.frame_width as f64, // Source Width
+            sprite_data.frame_height as f64, // Source Height
+            position_x,
+            position_y,
+            sprite_data.frame_width as f64, // Dest Width
+            sprite_data.frame_height as f64).unwrap(); // Dest Height
 
-    if flip_h {
-        renderer.context.restore();
-    }
+        if flip_h {
+            renderer.context.restore();
+        }
+    });
 }
