@@ -1,49 +1,53 @@
 use rcade_plugin_input_classic::ClassicController;
+use strum::EnumCount;
 use strum_macros::EnumCount;
 use std::cell::{RefCell, OnceCell};
 
-#[derive(EnumCount, Debug, Copy, Clone)]
+#[derive(Debug, EnumCount, Copy, Clone)]
 #[repr(usize)]
 pub enum InputAction {
-    PlayerOneUp,
-    PlayerOneRight,
-    PlayerOneDown,
-    PlayerOneLeft,
-    PlayerOneA,
-    PlayerOneB,
-    PlayerTwoUp,
-    PlayerTwoRight,
-    PlayerTwoDown,
-    PlayerTwoLeft,
-    PlayerTwoA,
-    PlayerTwoB,
-    Count
+    Up,
+    Right,
+    Down,
+    Left,
+    A,
+    B
 }
 
-const ACTION_COUNT: usize = InputAction::Count as usize;
+#[derive(Debug, EnumCount, Copy, Clone)]
+#[repr(usize)]
+pub enum InputPlayer {
+    One,
+    Two
+}
 
-pub struct Input {
+const INPUT_ACTION_COUNT: usize = InputAction::COUNT as usize;
+const INPUT_PLAYER_COUNT: usize = InputPlayer::COUNT as usize;
+const INPUT_TOTAL_COUNT: usize = INPUT_ACTION_COUNT * INPUT_PLAYER_COUNT;
+
+struct Input {
     controller: ClassicController,
-    current: RefCell<[bool; InputAction::Count as usize]>,
-    previous: RefCell<[bool; InputAction::Count as usize]>,
+    current: RefCell<[bool; INPUT_TOTAL_COUNT]>,
+    previous: RefCell<[bool; INPUT_TOTAL_COUNT]>,
 }
 
-fn input_controller_state_to_action_state(controller: &ClassicController) -> [bool; ACTION_COUNT] {
-    let mut current = [false; ACTION_COUNT];
+fn input_controller_state_to_action_state(controller: &ClassicController) -> [bool; INPUT_TOTAL_COUNT] {
+    let mut current = [false; INPUT_TOTAL_COUNT];
     let state = controller.state();
 
-    current[InputAction::PlayerOneUp as usize] = state.player1_up;
-    current[InputAction::PlayerOneRight as usize] = state.player1_right;
-    current[InputAction::PlayerOneDown as usize] = state.player1_down;
-    current[InputAction::PlayerOneLeft as usize] = state.player1_left;
-    current[InputAction::PlayerOneA as usize] = state.player1_a;
-    current[InputAction::PlayerOneB as usize] = state.player1_b;
-    current[InputAction::PlayerTwoUp as usize] = state.player2_up;
-    current[InputAction::PlayerTwoRight as usize] = state.player2_right;
-    current[InputAction::PlayerTwoDown as usize] = state.player2_down;
-    current[InputAction::PlayerTwoLeft as usize] = state.player2_left;
-    current[InputAction::PlayerTwoA as usize] = state.player2_a;
-    current[InputAction::PlayerTwoB as usize] = state.player2_b;
+    current[input_action_index(InputPlayer::One, InputAction::Up)] = state.player1_up;
+    current[input_action_index(InputPlayer::One, InputAction::Right)] = state.player1_right;
+    current[input_action_index(InputPlayer::One, InputAction::Down)] = state.player1_down;
+    current[input_action_index(InputPlayer::One, InputAction::Left)] = state.player1_left;
+    current[input_action_index(InputPlayer::One, InputAction::A)] = state.player1_a;
+    current[input_action_index(InputPlayer::One, InputAction::B)] = state.player1_b;
+
+    current[input_action_index(InputPlayer::Two, InputAction::Up)] = state.player2_up;
+    current[input_action_index(InputPlayer::Two, InputAction::Right)] = state.player2_right;
+    current[input_action_index(InputPlayer::Two, InputAction::Down)] = state.player2_down;
+    current[input_action_index(InputPlayer::Two, InputAction::Left)] = state.player2_left;
+    current[input_action_index(InputPlayer::Two, InputAction::A)] = state.player2_a;
+    current[input_action_index(InputPlayer::Two, InputAction::B)] = state.player2_b;
 
     current
 }
@@ -60,7 +64,7 @@ pub async fn input_init() {
         cell.get_or_init(|| Input {
             controller,
             current: RefCell::new(current),
-            previous: RefCell::new([false; ACTION_COUNT])
+            previous: RefCell::new([false; INPUT_TOTAL_COUNT])
         });
     });
 }
@@ -74,28 +78,35 @@ pub fn input_update() {
     });
 }
 
-pub fn input_is_action_pressed(action: InputAction) -> bool {
+fn input_action_index(player: InputPlayer, action: InputAction) -> usize {
+    ((player as usize) * INPUT_ACTION_COUNT) + (action as usize)
+}
+
+pub fn input_is_action_pressed(player: InputPlayer, action: InputAction) -> bool {
     INPUT_STATE.with(|cell| {
         let input = cell.get().unwrap();
         let current = input.current.borrow();
-        (*current)[action as usize]
+        let index = input_action_index(player, action);
+        (*current)[index]
     })
 }
 
-pub fn input_is_action_just_pressed(action: InputAction) -> bool {
+pub fn input_is_action_just_pressed(player: InputPlayer, action: InputAction) -> bool {
     INPUT_STATE.with(|cell| {
         let input = cell.get().unwrap();
         let current = input.current.borrow();
         let previous = input.previous.borrow();
-        (*current)[action as usize] && !(*previous)[action as usize]
+        let index = input_action_index(player, action);
+        (*current)[index] && !(*previous)[index]
     })
 }
 
-pub fn input_is_action_just_released(action: InputAction) -> bool {
+pub fn input_is_action_just_released(player: InputPlayer, action: InputAction) -> bool {
     INPUT_STATE.with(|cell| {
         let input = cell.get().unwrap();
         let current = input.current.borrow();
         let previous = input.previous.borrow();
-        !(*current)[action as usize] && (*previous)[action as usize]
+        let index = input_action_index(player, action);
+        !(*current)[index] && (*previous)[index]
     })
 }

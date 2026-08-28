@@ -1,6 +1,6 @@
 mod constants;
-mod game;
 mod core;
+mod game;
 
 use wasm_bindgen::prelude::*;
 use std::rc::Rc;
@@ -8,7 +8,7 @@ use std::cell::{RefCell};
 use core::render::*;
 use core::input::*;
 use core::animation::*;
-use game::GameState;
+use game::state::GameState;
 
 async fn run() -> Result<(), JsValue> {
     render_init().await;

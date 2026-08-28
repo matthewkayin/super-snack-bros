@@ -114,21 +114,34 @@ pub fn render_clear() {
     renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
 }
 
-pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32) {
+pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32, flip_h: bool) {
     let renderer: &Renderer = RENDERER.get().unwrap();
     let sprite_data: &SpriteData = &renderer.sprite_data[sprite as usize];
-    let result = renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+
+    let mut position_x = position.x as f64;
+    let mut position_y = position.y as f64;
+
+    if flip_h {
+        renderer.context.save();
+        renderer.context.translate((position.x + SCREEN_WIDTH) as f64, position.y as f64).unwrap();
+        renderer.context.scale(-1.0, 1.0).unwrap();
+        position_x = 0.0;
+        position_y = 0.0;
+    }
+    let width_modifier: f64 = if flip_h { -1.0 } else { 1.0 };
+
+    renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
         &sprite_data.image, // Image
         (h_frame * sprite_data.frame_width) as f64, // Source X
         (v_frame * sprite_data.frame_height) as f64, // Source Y
         sprite_data.frame_width as f64, // Source Width
         sprite_data.frame_height as f64, // Source Height
-        position.x as f64, // Dest X
-        position.y as f64, // Dest Y
-        sprite_data.frame_width as f64, // Dest Width
-        sprite_data.frame_height as f64); // Dest Height
-    match result {
-        Ok(_) => {},
-        Err(js_value) => web_sys::console::error_1(&js_value)
+        position_x,
+        position_y,
+        sprite_data.frame_width as f64 * width_modifier, // Dest Width
+        sprite_data.frame_height as f64).unwrap(); // Dest Height
+
+    if flip_h {
+        renderer.context.restore();
     }
 }
