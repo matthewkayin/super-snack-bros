@@ -1,21 +1,17 @@
-use crate::constants::*;
 use crate::core::input::*;
 use crate::game::collider::*;
 use crate::core::animation::*;
 use crate::core::render::*;
 use glam::Vec2;
 
-const FIGHTER_SPAWN_MARGIN: f32 = 32.0;
+const FIGHTER_WALK_SPEED: f32 = 1.5;
+const FIGHTER_WALK_ACCELERATION: f32 = 0.55;
+const FIGHTER_WALK_DECELERATION: f32 = 0.15;
 
-const FIGHTER_WALK_SPEED: f32 = 2.0;
-const FIGHTER_WALK_ACCELERATION: f32 = 0.7;
-const FIGHTER_WALK_DECELERATION: f32 = 0.2;
-
-const FIGHTER_GRAVITY: f32 = 0.45;
-const FIGHTER_JUMP_ACCELERATION: f32 = -10.0;
-const FIGHTER_JUMP_SHORT_HOP_ACCELERATION: f32 = -8.0;
-const FIGHTER_FALL_SPEED: f32 = 3.0;
-const FIGHTER_JUMPED_ON_ACCELERATION: f32 = 2.0;
+const FIGHTER_GRAVITY: f32 = 0.34;
+const FIGHTER_JUMP_ACCELERATION: f32 = -6.0;
+const FIGHTER_JUMP_SHORT_HOP_ACCELERATION: f32 = -4.0;
+const FIGHTER_FALL_SPEED: f32 = 2.25;
 
 const FIGHTER_JUMP_INPUT_DURATION: u32 = 10;
 const FIGHTER_COYOTE_TIMER_DURATION: u32 = 10;
@@ -29,10 +25,11 @@ enum FighterMode {
 
 pub struct Fighter {
     player: InputPlayer,
+    pub sprite: Sprite,
     mode: FighterMode,
     animation: AnimationInstance,
 
-    position: Vec2,
+    pub position: Vec2,
     pub velocity: Vec2,
     direction: i32,
 
@@ -47,17 +44,16 @@ pub struct Fighter {
 
 impl Fighter {
     pub fn new(player: InputPlayer) -> Self {
-        let position_x = if player == InputPlayer::One {
-            FIGHTER_SPAWN_MARGIN
-        } else {
-            SCREEN_WIDTH - FIGHTER_SPAWN_MARGIN - render_get_sprite_frame_size(Sprite::Crab).x
-        };
         Fighter {
             player,
+            sprite: match player {
+                InputPlayer::One => Sprite::CrabOrange,
+                InputPlayer::Two => Sprite::CrabGreen,
+            },
             mode: FighterMode::Idle,
 
             animation: Animation::CrabIdle.instance(),
-            position: Vec2::new(position_x, SCREEN_HEIGHT - render_get_sprite_frame_size(Sprite::Crab).y - 100.0),
+            position: Vec2::new(0.0, 0.0),
             velocity: Vec2::new(0.0, 0.0),
             direction: if player == InputPlayer::One { 1 } else { -1 },
 
@@ -230,16 +226,14 @@ impl Fighter {
     }
 
     fn jump(&mut self) {
-        let jump_impulse = if input_is_action_pressed(self.player, InputAction::Up) {
-            FIGHTER_JUMP_ACCELERATION
-        } else {
+        self.velocity.y = if self.can_ground_jump() && !input_is_action_pressed(self.player, InputAction::Up) {
             FIGHTER_JUMP_SHORT_HOP_ACCELERATION
+        } else {
+            FIGHTER_JUMP_ACCELERATION
         };
-        self.velocity.y += jump_impulse;
-        self.velocity.y = self.velocity.y.max(FIGHTER_JUMP_ACCELERATION)
     }
 
     pub fn render(&self) {
-        render_sprite(Sprite::Crab, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == -1);
+        render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == -1);
     }
 }

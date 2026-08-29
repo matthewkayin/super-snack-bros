@@ -11,7 +11,10 @@ use crate::constants::{SCREEN_HEIGHT, SCREEN_WIDTH};
 #[derive(Debug, Copy, Clone, EnumIter)]
 #[repr(usize)]
 pub enum Sprite {
-    Crab
+    CrabOrange,
+    CrabGreen,
+    Parallax,
+    Tileset
 }
 
 struct SpriteParams {
@@ -34,11 +37,26 @@ struct Renderer {
 
 fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
     match sprite {
-        Sprite::Crab => SpriteParams {
-            path: "res/crab.png",
+        Sprite::CrabOrange => SpriteParams {
+            path: "res/crab_orange.png",
             h_frames: 8,
             v_frames: 2
         },
+        Sprite::CrabGreen => SpriteParams {
+            path: "res/crab_green.png",
+            h_frames: 8,
+            v_frames: 2
+        },
+        Sprite::Parallax => SpriteParams {
+            path: "res/parallax.png",
+            h_frames: 1,
+            v_frames: 1
+        },
+        Sprite::Tileset => SpriteParams {
+            path: "res/tileset.png",
+            h_frames: 13,
+            v_frames: 3
+        }
     }
 }
 
@@ -130,7 +148,15 @@ pub fn render_clear() {
     });
 }
 
-pub fn render_rect(color: &str, position: Vec2, size: Vec2) {
+pub fn render_fill_rect(color: &str, position: Vec2, size: Vec2) {
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+        renderer.context.set_fill_style_str(color);
+        renderer.context.fill_rect(position.x as f64, position.y as f64, size.x as f64, size.y as f64);
+    });
+}
+
+pub fn render_draw_rect(color: &str, position: Vec2, size: Vec2) {
     RENDERER.with(|cell| {
         let renderer = cell.get().unwrap();
 
