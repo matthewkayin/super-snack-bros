@@ -22,7 +22,7 @@ pub enum InputPlayer {
 }
 
 const INPUT_ACTION_COUNT: usize = InputAction::COUNT as usize;
-const INPUT_PLAYER_COUNT: usize = InputPlayer::COUNT as usize;
+pub const INPUT_PLAYER_COUNT: usize = InputPlayer::COUNT as usize;
 const INPUT_TOTAL_COUNT: usize = INPUT_ACTION_COUNT * INPUT_PLAYER_COUNT;
 
 struct Input {

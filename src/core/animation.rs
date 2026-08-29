@@ -7,9 +7,10 @@ const ANIMATION_LOOPS_INDEFINITELY: u32 = u32::MAX;
 #[derive(Debug, EnumCount, EnumIter, Copy, Clone, Eq, PartialEq)]
 pub enum Animation {
     CrabIdle,
-    CrabWalkForward,
+    CrabWalk,
     CrabJump,
     CrabFall,
+    CrabHurt,
     CrabPunch
 }
 
@@ -111,7 +112,7 @@ pub fn animation_init() {
     };
 
     // Crab Walk Forward
-    animation_data[Animation::CrabWalkForward as usize] = AnimationData {
+    animation_data[Animation::CrabWalk as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
         frames: vec![
             AnimationFrame { h_frame: 0, v_frame: 0, duration: 8 },
@@ -125,7 +126,7 @@ pub fn animation_init() {
     animation_data[Animation::CrabJump as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
         frames: vec![
-            AnimationFrame { h_frame: 8, v_frame: 0, duration: 8 }
+            AnimationFrame { h_frame: 5, v_frame: 0, duration: 8 }
         ]
     };
 
@@ -133,7 +134,15 @@ pub fn animation_init() {
     animation_data[Animation::CrabFall as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
         frames: vec![
-            AnimationFrame { h_frame: 9, v_frame: 0, duration: 8 }
+            AnimationFrame { h_frame: 6, v_frame: 0, duration: 8 }
+        ]
+    };
+
+    // Crab Hurt
+    animation_data[Animation::CrabHurt as usize] = AnimationData {
+        loops: ANIMATION_LOOPS_INDEFINITELY,
+        frames: vec![
+            AnimationFrame { h_frame: 7, v_frame: 0, duration: 8 }
         ]
     };
 
@@ -141,9 +150,9 @@ pub fn animation_init() {
     animation_data[Animation::CrabPunch as usize] = AnimationData {
         loops: 1,
         frames: vec![
-            AnimationFrame { h_frame: 10, v_frame: 0, duration: 16 },
-            AnimationFrame { h_frame: 11, v_frame: 0, duration: 16 },
-            AnimationFrame { h_frame: 12, v_frame: 0, duration: 16 }
+            AnimationFrame { h_frame: 0, v_frame: 1, duration: 8 },
+            AnimationFrame { h_frame: 1, v_frame: 1, duration: 8 },
+            AnimationFrame { h_frame: 2, v_frame: 1, duration: 8 }
         ]
     };
 

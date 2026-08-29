@@ -36,8 +36,8 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
     match sprite {
         Sprite::Crab => SpriteParams {
             path: "res/crab.png",
-            h_frames: 13,
-            v_frames: 1
+            h_frames: 8,
+            v_frames: 2
         },
     }
 }
@@ -98,6 +98,8 @@ pub async fn render_init() {
     let context = canvas.get_context("2d").unwrap().unwrap()
         .dyn_into::<CanvasRenderingContext2d>().unwrap();
 
+    context.set_image_smoothing_enabled(false);
+
     // Load sprites
     let mut sprite_data: Vec<SpriteData> = Vec::new();
     for sprite_name in Sprite::iter() {
@@ -125,6 +127,15 @@ pub fn render_clear() {
         let renderer = cell.get().unwrap();
         renderer.context.set_fill_style_str("#f0f0f0");
         renderer.context.fill_rect(0.0, 0.0, SCREEN_WIDTH as f64, SCREEN_HEIGHT as f64);
+    });
+}
+
+pub fn render_rect(color: &str, position: Vec2, size: Vec2) {
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+
+        renderer.context.set_stroke_style_str(color);
+        renderer.context.stroke_rect(position.x as f64, position.y as f64, size.x as f64, size.y as f64);
     });
 }
 
