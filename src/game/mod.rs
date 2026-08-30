@@ -1,3 +1,3 @@
 mod fighter;
-mod collider;
+mod rect;
 pub mod state;

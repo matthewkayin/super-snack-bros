@@ -1,5 +1,5 @@
 use crate::core::input::*;
-use crate::game::collider::*;
+use crate::game::rect::*;
 use crate::core::animation::*;
 use crate::core::render::*;
 use glam::Vec2;
@@ -33,10 +33,8 @@ pub struct Fighter {
     pub velocity: Vec2,
     direction: i32,
 
-    jumped_last_frame: bool,
     has_double_jump: bool,
     is_grounded: bool,
-    was_grounded: bool,
     jump_input_timer: u32,
     coyote_timer: u32,
     jump_timer: u32
@@ -57,17 +55,15 @@ impl Fighter {
             velocity: Vec2::new(0.0, 0.0),
             direction: if player == InputPlayer::One { 1 } else { -1 },
 
-            jumped_last_frame: false,
             has_double_jump: false,
             is_grounded: false,
-            was_grounded: false,
             jump_input_timer: 0,
             coyote_timer: 0,
             jump_timer: 0
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, colliders: &Vec<Rect>) {
         // Animation
         if self.animation.name != self.get_expected_animation() {
             self.reset_animation();
@@ -75,21 +71,6 @@ impl Fighter {
         self.animation.update();
 
         // JUMPING
-
-        // Coyote timer
-        if !self.is_grounded && self.was_grounded && !self.jumped_last_frame {
-            self.coyote_timer = FIGHTER_COYOTE_TIMER_DURATION;
-        }
-        if self.coyote_timer != 0 {
-            self.coyote_timer -= 1;
-        }
-
-        // Reset jumps remaining
-        if self.is_grounded {
-            self.has_double_jump = true;
-        }
-
-        self.jumped_last_frame = false;
 
         // On up press, start jump timer
         if input_is_action_just_pressed(self.player, InputAction::Up) {
@@ -119,13 +100,14 @@ impl Fighter {
         }
 
         // While jumping, move up
+        let mut jumped_this_frame = false;
         if self.mode == FighterMode::JumpSquat {
             self.jump_timer -= 1;
             if self.jump_timer == 0 {
                 self.mode = FighterMode::Idle;
                 self.jump_timer = 0;
                 self.jump();
-                self.jumped_last_frame = true;
+                jumped_this_frame = true;
             }
         }
 
@@ -163,25 +145,149 @@ impl Fighter {
         if self.velocity.y > FIGHTER_FALL_SPEED {
             self.velocity.y = FIGHTER_FALL_SPEED;
         }
-        self.position += self.velocity;
 
-        self.was_grounded = self.is_grounded;
+        let was_grounded = self.is_grounded;
         self.is_grounded = false;
-    }
 
-    pub fn handle_static_collisions(&mut self, static_colliders: &Vec<Collider>) {
-        for collider in static_colliders.iter() {
-            let collision = self.get_pushbox().get_collision(collider);
-            self.position += collision;
-            if collision.y < 0.0 {
-                self.is_grounded = true;
-                self.velocity.y = 0.0;
+        // Move X
+        if self.velocity.x != 0.0 {
+            let old_pushbox = self.get_pushbox();
+            self.position.x += self.velocity.x;
+            let pushbox = self.get_pushbox();
+
+            for collider in colliders.iter() {
+                // First, check that we are aligned on the y axis
+                let vertically_overlapping = !(
+                    pushbox.position.y + pushbox.size.y <= collider.position.y ||
+                    pushbox.position.y >= collider.position.y + collider.size.y);
+
+                if vertically_overlapping {
+                    if self.velocity.x > 0.0 &&
+                        old_pushbox.position.x <= collider.position.x &&
+                        pushbox.position.x + pushbox.size.x > collider.position.x
+                    {
+                        self.position.x += collider.position.x - (pushbox.position.x + pushbox.size.x);
+                        self.velocity.x = 0.0;
+                        break;
+                    }
+
+                    if self.velocity.x < 0.0 &&
+                        old_pushbox.position.x >= collider.position.x + collider.size.x &&
+                        pushbox.position.x < collider.position.x + collider.size.x
+                    {
+                        self.position.x += (collider.position.x + collider.size.x) - pushbox.position.x;
+                        self.velocity.x = 0.0;
+                        break;
+                    }
+                }
             }
+        }
+
+        // Move Y
+        if self.velocity.y != 0.0 {
+            let old_pushbox = self.get_pushbox();
+            self.position.y += self.velocity.y;
+            let pushbox = self.get_pushbox();
+
+            for collider in colliders.iter() {
+                // First, check that we are aligned on the x axis
+                let horizontally_overlapping = !(
+                    pushbox.position.x + pushbox.size.x <= collider.position.x ||
+                    pushbox.position.x >= collider.position.x + collider.size.x);
+
+                if horizontally_overlapping {
+                    if self.velocity.y > 0.0 &&
+                        old_pushbox.position.y <= collider.position.y &&
+                        pushbox.position.y + pushbox.size.y > collider.position.y
+                    {
+                        self.position.y += collider.position.y - (pushbox.position.y + pushbox.size.y);
+                        self.velocity.y = 0.0;
+                        self.is_grounded = true;
+                        break;
+                    }
+
+                    if self.velocity.y < 0.0 &&
+                        old_pushbox.position.y >= collider.position.y + collider.size.y &&
+                        pushbox.position.y < collider.position.y + collider.size.y
+                    {
+                        self.position.y += (collider.position.y + collider.size.y) - pushbox.position.y;
+                        self.velocity.y = 0.0;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Coyote timer
+        if !self.is_grounded && was_grounded && !jumped_this_frame {
+            self.coyote_timer = FIGHTER_COYOTE_TIMER_DURATION;
+        }
+        if self.coyote_timer != 0 {
+            self.coyote_timer -= 1;
+        }
+
+        // Reset jumps remaining
+        if self.is_grounded {
+            self.has_double_jump = true;
         }
     }
 
+    fn move_and_collide(&mut self, velocity: Vec2, colliders: &Vec<Rect>) -> Vec2 {
+        let mut collision_normal = Vec2::ZERO;
+        let mut shortest_collider_distance = velocity.length();
+
+        let mut predicted_pushbox = self.get_pushbox();
+        predicted_pushbox.position += velocity;
+        for collider in colliders.iter() {
+            if !predicted_pushbox.intersects(collider) {
+                continue;
+            }
+            if velocity.x > 0.0 {
+                let distance_to_collider = collider.position.x - (predicted_pushbox.position.x + predicted_pushbox.size.x);
+                if distance_to_collider < shortest_collider_distance {
+                    shortest_collider_distance = distance_to_collider;
+                    collision_normal = Vec2::new(-1.0, 0.0);
+                }
+            } else if velocity.x < 0.0 {
+                let distance_to_collider = (collider.position.x + collider.size.x) - predicted_pushbox.position.x;
+                if distance_to_collider < shortest_collider_distance {
+                    shortest_collider_distance = distance_to_collider;
+                    collision_normal = Vec2::new(1.0, 0.0);
+                }
+            } else if velocity.y > 0.0 {
+                let distance_to_collider = collider.position.y - (predicted_pushbox.position.y + predicted_pushbox.size.y);
+                if distance_to_collider < shortest_collider_distance {
+                    shortest_collider_distance = distance_to_collider;
+                    collision_normal = Vec2::new(0.0, -1.0);
+                }
+            } else if velocity.y < 0.0 {
+                let distance_to_collider = (collider.position.y + collider.size.y) - collider.position.y;
+                if distance_to_collider < shortest_collider_distance {
+                    shortest_collider_distance = distance_to_collider;
+                    collision_normal = Vec2::new(0.0, 1.0);
+                }
+            }
+        }
+
+        let mut actual_velocity = velocity;
+        if collision_normal != Vec2::ZERO {
+            if velocity.x != 0.0 {
+                actual_velocity = Vec2::new(shortest_collider_distance, 0.0);
+            } else {
+                actual_velocity = Vec2::new(0.0, shortest_collider_distance);
+            }
+
+            // Apply a safe margin so that we don't accidentally overlap due to float error
+            actual_velocity += 0.001 * collision_normal;
+        }
+        self.position += actual_velocity;
+
+        collision_normal
+    }
+
     pub fn handle_pushbox_collision(&mut self, collision: Vec2) {
-        if self.was_grounded {
+        // if self.was_grounded
+        if self.is_grounded {
             self.position.x += collision.x * 0.5;
         }
     }
@@ -221,8 +327,11 @@ impl Fighter {
         Animation::CrabIdle
     }
 
-    pub fn get_pushbox(&self) -> Collider {
-        Collider::new(self.position + Vec2::new(9.0, 5.0), Vec2::new(14.0, 11.0))
+    pub fn get_pushbox(&self) -> Rect {
+        Rect {
+            position: self.position + Vec2::new(9.0, 5.0),
+            size: Vec2::new(14.0, 11.0)
+        }
     }
 
     fn jump(&mut self) {

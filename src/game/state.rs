@@ -1,7 +1,7 @@
 use crate::game::fighter::*;
 use crate::core::input::*;
 use crate::core::render::*;
-use crate::game::collider::*;
+use crate::game::rect::*;
 use crate::constants::*;
 use glam::Vec2;
 
@@ -13,7 +13,7 @@ const TILE_SIZE_F32: f32 = TILE_SIZE_U32 as f32;
 
 pub struct GameState {
     players: [Fighter; INPUT_PLAYER_COUNT],
-    level_platforms: Vec<Collider>,
+    level_platforms: Vec<Rect>,
     parallax_x: f32
 }
 
@@ -28,7 +28,10 @@ impl GameState {
         let center_platform_height = TILE_SIZE_F32;
         let center_platform_x = (SCREEN_WIDTH - center_platform_width) / 2.0;
         let center_platform_y = SCREEN_HEIGHT - (TILE_SIZE_F32 * 2.0);
-        level_platforms.push(Collider::new(Vec2::new(center_platform_x, center_platform_y), Vec2::new(center_platform_width, center_platform_height)));
+        level_platforms.push(Rect {
+            position: Vec2::new(center_platform_x, center_platform_y),
+            size: Vec2::new(center_platform_width, center_platform_height)
+        });
 
         // Determine player positions
         let mut players = [Fighter::new(InputPlayer::One), Fighter::new(InputPlayer::Two)];
@@ -41,7 +44,7 @@ impl GameState {
                 _ => { assert!(false); 0.0 }
             };
             let player_x = player_center_x - (sprite_frame_size.x / 2.0);
-            let player_y = center_platform_y - sprite_frame_size.y;
+            let player_y = center_platform_y - sprite_frame_size.y - 100.0;
 
             players[player_index].position = Vec2::new(player_x, player_y);
         }
@@ -55,16 +58,12 @@ impl GameState {
 
     pub fn update(&mut self) {
         for player in self.players.iter_mut() {
-            player.update();
+            player.update(&self.level_platforms);
         }
 
         let pushbox_collision = self.players[0].get_pushbox().get_collision(&self.players[1].get_pushbox());
         self.players[0].handle_pushbox_collision(pushbox_collision);
         self.players[1].handle_pushbox_collision(-pushbox_collision);
-
-        for player in self.players.iter_mut() {
-            player.handle_static_collisions(&self.level_platforms);
-        }
 
         self.parallax_x = (self.parallax_x + PARALLAX_SPEED) % PARALLAX_WIDTH;
     }
@@ -90,25 +89,24 @@ impl GameState {
 
         for player in self.players.iter() {
             player.render();
-            render_draw_rect(&rect_color_green, player.get_pushbox().position(), player.get_pushbox().size());
+            let pushbox = player.get_pushbox();
+            render_draw_rect(&rect_color_green, pushbox.position, pushbox.size);
         }
 
         for collider in self.level_platforms.iter() {
-            render_draw_rect(&rect_color_green, collider.position(), collider.size());
+            render_draw_rect(&rect_color_green, collider.position, collider.size);
         }
     }
 
-    fn render_platform(platform: &Collider) {
-        let platform_size_x = platform.size().x as u32;
-        let platform_size_y = (SCREEN_HEIGHT - platform.position().y) as u32;
+    fn render_platform(platform: &Rect) {
+        let platform_size_x = platform.size.x as u32;
+        let platform_size_y = (SCREEN_HEIGHT - platform.position.y) as u32;
 
         assert!(platform_size_x % TILE_SIZE_U32 == 0);
         assert!(platform_size_y % TILE_SIZE_U32 == 0);
 
         let tile_width = platform_size_x / TILE_SIZE_U32;
         let tile_height = platform_size_y / TILE_SIZE_U32;
-        let message = format!("Position {:?} tile width {} height {}", platform.position(), tile_width, tile_height);
-        web_sys::console::log_1(&message.into());
         for y in 0..tile_height {
             for x in 0..tile_width {
                 let h_frame = match x {
@@ -121,7 +119,7 @@ impl GameState {
                     _ => 2
                 };
 
-                render_sprite(Sprite::Tileset, platform.position() + Vec2::new((x * TILE_SIZE_U32) as f32, (y * TILE_SIZE_U32) as f32), h_frame, v_frame, false);
+                render_sprite(Sprite::Tileset, platform.position + Vec2::new((x * TILE_SIZE_U32) as f32, (y * TILE_SIZE_U32) as f32), h_frame, v_frame, false);
             }
         }
     }
