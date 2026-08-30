@@ -21,17 +21,46 @@ impl GameState {
     pub fn new() -> Self {
         // INIT LEVEL PLATFORMS
 
-        let mut level_platforms = Vec::new();
-
         // Center platform
         let center_platform_width = TILE_SIZE_F32 * 16.0;
-        let center_platform_height = TILE_SIZE_F32;
+        let center_platform_height = TILE_SIZE_F32 * 2.0;
         let center_platform_x = (SCREEN_WIDTH - center_platform_width) / 2.0;
         let center_platform_y = SCREEN_HEIGHT - (TILE_SIZE_F32 * 2.0);
-        level_platforms.push(Rect {
-            position: Vec2::new(center_platform_x, center_platform_y),
-            size: Vec2::new(center_platform_width, center_platform_height)
-        });
+
+        // Side platforms
+        let side_platform_width = TILE_SIZE_F32 * 5.0;
+        let side_platform_height = TILE_SIZE_F32;
+        let side_platform_margin = TILE_SIZE_F32 * 0.5;
+        let side_platform_y = center_platform_y - (TILE_SIZE_F32 * 4.0);
+        let left_platform_x = center_platform_x + side_platform_margin;
+        let right_platform_x = center_platform_x + center_platform_width - side_platform_margin - side_platform_width;
+
+        // Top platform
+        let top_platform_x = (SCREEN_WIDTH / 2.0) - (side_platform_width / 2.0);
+        let top_platform_y = center_platform_y - (TILE_SIZE_F32 * 8.0);
+
+        let level_platforms = vec![
+            // Top
+            Rect {
+                position: Vec2::new(top_platform_x, top_platform_y),
+                size: Vec2::new(side_platform_width, side_platform_height)
+            },
+            // Left
+            Rect {
+                position: Vec2::new(left_platform_x, side_platform_y),
+                size: Vec2::new(side_platform_width, side_platform_height)
+            },
+            // Right
+            Rect {
+                position: Vec2::new(right_platform_x, side_platform_y),
+                size: Vec2::new(side_platform_width, side_platform_height)
+            },
+            // Center
+            Rect {
+                position: Vec2::new(center_platform_x, center_platform_y),
+                size: Vec2::new(center_platform_width, center_platform_height)
+            }
+        ];
 
         // Determine player positions
         let mut players = [Fighter::new(InputPlayer::One), Fighter::new(InputPlayer::Two)];
@@ -44,7 +73,7 @@ impl GameState {
                 _ => { assert!(false); 0.0 }
             };
             let player_x = player_center_x - (sprite_frame_size.x / 2.0);
-            let player_y = center_platform_y - sprite_frame_size.y - 100.0;
+            let player_y = center_platform_y - sprite_frame_size.y;
 
             players[player_index].position = Vec2::new(player_x, player_y);
         }
@@ -100,7 +129,7 @@ impl GameState {
 
     fn render_platform(platform: &Rect) {
         let platform_size_x = platform.size.x as u32;
-        let platform_size_y = (SCREEN_HEIGHT - platform.position.y) as u32;
+        let platform_size_y = platform.size.y as u32;
 
         assert!(platform_size_x % TILE_SIZE_U32 == 0);
         assert!(platform_size_y % TILE_SIZE_U32 == 0);

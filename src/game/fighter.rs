@@ -161,7 +161,7 @@ impl Fighter {
                     pushbox.position.y + pushbox.size.y <= collider.position.y ||
                     pushbox.position.y >= collider.position.y + collider.size.y);
 
-                if vertically_overlapping {
+                if vertically_overlapping && self.velocity.y >= 0.0 {
                     if self.velocity.x > 0.0 &&
                         old_pushbox.position.x <= collider.position.x &&
                         pushbox.position.x + pushbox.size.x > collider.position.x
@@ -205,8 +205,8 @@ impl Fighter {
                         old_pushbox.position.y >= collider.position.y + collider.size.y &&
                         pushbox.position.y < collider.position.y + collider.size.y
                     {
-                        self.position.y += (collider.position.y + collider.size.y) - pushbox.position.y;
-                        self.velocity.y = 0.0;
+                        // self.position.y += (collider.position.y + collider.size.y) - pushbox.position.y;
+                        // self.velocity.y = 0.0;
                         break;
                     }
                 }
