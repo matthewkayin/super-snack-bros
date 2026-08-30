@@ -11,10 +11,17 @@ const PARALLAX_WIDTH: f32 = 256.0;
 const TILE_SIZE_U32: u32 = 16;
 const TILE_SIZE_F32: f32 = TILE_SIZE_U32 as f32;
 
+const DEBUG_MODE_NONE: u32 = 0;
+const DEBUG_MODE_PUSHBOXES: u32 = 1;
+const DEBUG_MODE_HITBOXES: u32 = 2;
+const DEBUG_MODE_COUNT: u32 = 3;
+
 pub struct GameState {
     players: [Fighter; INPUT_PLAYER_COUNT],
     level_platforms: Vec<Rect>,
-    parallax_x: f32
+    parallax_x: f32,
+
+    debug_mode: u32
 }
 
 impl GameState {
@@ -81,7 +88,9 @@ impl GameState {
         GameState {
             players,
             level_platforms,
-            parallax_x: 0.0
+            parallax_x: 0.0,
+
+            debug_mode: DEBUG_MODE_NONE
         }
     }
 
@@ -95,6 +104,10 @@ impl GameState {
         self.players[1].handle_pushbox_collision(Vec2::new(-pushbox_collision, 0.0));
 
         self.parallax_x = (self.parallax_x + PARALLAX_SPEED) % PARALLAX_WIDTH;
+
+        if input_is_action_just_pressed(InputPlayer::One, InputAction::Start) {
+            self.debug_mode = (self.debug_mode + 1) % DEBUG_MODE_COUNT;
+        }
     }
 
     pub fn render(&self) {
@@ -114,16 +127,55 @@ impl GameState {
             GameState::render_platform(&collider);
         }
 
-        let rect_color_green = "#00ff00ff";
-
+        // Player
         for player in self.players.iter() {
             player.render();
-            let pushbox = player.get_pushbox();
-            render_draw_rect(&rect_color_green, pushbox.position, pushbox.size);
         }
 
-        for collider in self.level_platforms.iter() {
-            render_draw_rect(&rect_color_green, collider.position, collider.size);
+        // Debug - Pushboxes
+        if self.debug_mode == DEBUG_MODE_PUSHBOXES {
+            let rect_color_green = "#00ff00ff";
+
+            // Level colliders
+            for collider in self.level_platforms.iter() {
+                render_draw_rect(&rect_color_green, collider.position, collider.size);
+            }
+
+            // Player pushboxes
+            for player in self.players.iter() {
+                let pushbox = player.get_pushbox();
+                render_draw_rect(&rect_color_green, pushbox.position, pushbox.size);
+            }
+        }
+
+        // Debug - Hitboxes
+        if self.debug_mode == DEBUG_MODE_HITBOXES {
+            let rect_color_red = "#ff0000ff";
+            let rect_color_blue = "#0000ffff";
+
+            // Player hurtboxes
+            for player in self.players.iter() {
+                let hurtbox = player.get_hurtbox();
+                render_draw_rect(&rect_color_blue, hurtbox.position, hurtbox.size);
+            }
+
+            // Player hitboxes
+            for player in self.players.iter() {
+                let hitbox = player.get_hitbox();
+                if hitbox.size.x == 0.0 {
+                    continue;
+                }
+                render_draw_rect(&rect_color_red, hitbox.position, hitbox.size);
+            }
+        }
+
+        // Debug UI
+        let text_position = Vec2::new(2.0, 10.0);
+        match self.debug_mode {
+            DEBUG_MODE_NONE => render_text("Debug: None", text_position),
+            DEBUG_MODE_PUSHBOXES => render_text("Debug: Pushboxes", text_position),
+            DEBUG_MODE_HITBOXES => render_text("Debug: Hitboxes", text_position),
+            _ => ()
         }
     }
 

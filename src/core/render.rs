@@ -165,6 +165,16 @@ pub fn render_draw_rect(color: &str, position: Vec2, size: Vec2) {
     });
 }
 
+pub fn render_text(text: &str, position: Vec2) {
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+
+        renderer.context.set_font("10px sans-serif");
+        renderer.context.set_fill_style_str("#fff");
+        renderer.context.fill_text(text, position.x as f64, position.y as f64).unwrap();
+    });
+}
+
 pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32, flip_h: bool) {
     RENDERER.with(|cell| {
         let renderer = cell.get().unwrap();

@@ -11,7 +11,8 @@ pub enum InputAction {
     Down,
     Left,
     A,
-    B
+    B,
+    Start
 }
 
 #[derive(Debug, EnumCount, Copy, Clone, Eq, PartialEq)]
@@ -41,6 +42,7 @@ fn input_controller_state_to_action_state(controller: &ClassicController) -> [bo
     current[input_action_index(InputPlayer::One, InputAction::Left)] = state.player1_left;
     current[input_action_index(InputPlayer::One, InputAction::A)] = state.player1_a;
     current[input_action_index(InputPlayer::One, InputAction::B)] = state.player1_b;
+    current[input_action_index(InputPlayer::One, InputAction::Start)] = state.system_one_player;
 
     current[input_action_index(InputPlayer::Two, InputAction::Up)] = state.player2_up;
     current[input_action_index(InputPlayer::Two, InputAction::Right)] = state.player2_right;
@@ -48,6 +50,7 @@ fn input_controller_state_to_action_state(controller: &ClassicController) -> [bo
     current[input_action_index(InputPlayer::Two, InputAction::Left)] = state.player2_left;
     current[input_action_index(InputPlayer::Two, InputAction::A)] = state.player2_a;
     current[input_action_index(InputPlayer::Two, InputAction::B)] = state.player2_b;
+    current[input_action_index(InputPlayer::Two, InputAction::Start)] = state.system_two_player;
 
     current
 }

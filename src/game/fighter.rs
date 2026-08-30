@@ -14,7 +14,6 @@ const FIGHTER_JUMP_ACCELERATION: f32 = -6.0;
 const FIGHTER_JUMP_SHORT_HOP_ACCELERATION: f32 = -4.0;
 const FIGHTER_FALL_SPEED: f32 = 2.25;
 
-const FIGHTER_JUMP_INPUT_DURATION: u32 = 10;
 const FIGHTER_COYOTE_TIMER_DURATION: u32 = 10;
 const FIGHTER_JUMP_SQUAT_DURATION: u32 = 5;
 
@@ -333,6 +332,28 @@ impl Fighter {
         Rect {
             position: self.position + Vec2::new(9.0, 5.0),
             size: Vec2::new(14.0, 11.0)
+        }
+    }
+
+    // Receives damage
+    pub fn get_hurtbox(&self) -> Rect {
+        Rect {
+            position: self.position + Vec2::new(9.0, 5.0),
+            size: Vec2::new(14.0, 11.0)
+        }
+    }
+
+    // Deals damage
+    pub fn get_hitbox(&self) -> Rect {
+        match self.mode {
+            FighterMode::PunchGround1 | FighterMode::PunchGround2 => Rect {
+                position: self.position + Vec2::new(20.0, 3.0),
+                size: Vec2::new(12.0, 7.0)
+            },
+            _ => Rect {
+                position: Vec2::ZERO,
+                size: Vec2::ZERO
+            }
         }
     }
 
