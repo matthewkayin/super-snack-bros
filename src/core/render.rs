@@ -111,8 +111,28 @@ pub async fn render_init() {
     // Get the global window and document objects
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
-    let canvas = document.get_element_by_id("game-canvas")
-        .unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
+
+    let canvas = document
+        .create_element("canvas").unwrap()
+        .dyn_into::<HtmlCanvasElement>().unwrap();
+    canvas.set_id("game-canvas");
+
+    let style = canvas.style();
+    style.set_property("width", "100vw").unwrap();
+    style.set_property("height", "100vh").unwrap();
+    style.set_property("display", "block").unwrap();
+    style.set_property("image-rendering", "pixelated").unwrap();
+    style.set_property("image-rendering", "-moz-crisp-edges").unwrap();
+    style.set_property("image-rendering", "crisp-edges").unwrap();
+
+    let body = document.body().unwrap();
+    body.append_child(&canvas).unwrap();
+
+    canvas.set_width(canvas.client_width() as u32);
+    canvas.set_height(canvas.client_height() as u32);
+    let message = format!("canvas width {} height {}", canvas.client_width(), canvas.client_height());
+    web_sys::console::log_1(&message.into());
+
     let context = canvas.get_context("2d").unwrap().unwrap()
         .dyn_into::<CanvasRenderingContext2d>().unwrap();
 
