@@ -71,7 +71,7 @@ impl GameState {
 
         // Determine player positions
         let mut players = [Fighter::new(InputPlayer::One), Fighter::new(InputPlayer::Two)];
-        for player_index in 0..2 {
+        for player_index in 0..INPUT_PLAYER_COUNT {
             let sprite_frame_size = render_get_sprite_frame_size(players[player_index].sprite);
             let player_spawn_offset = TILE_SIZE_F32 * 2.0;
             let player_center_x = match player_index {
@@ -95,16 +95,43 @@ impl GameState {
     }
 
     pub fn update(&mut self) {
+        // Update players
         for player in self.players.iter_mut() {
             player.update(&self.level_platforms);
         }
 
+        // Handle player-to-player collision
         let pushbox_collision = self.players[0].get_pushbox().get_collision_x(&self.players[1].get_pushbox());
         self.players[0].handle_pushbox_collision(Vec2::new(pushbox_collision, 0.0));
         self.players[1].handle_pushbox_collision(Vec2::new(-pushbox_collision, 0.0));
 
+        // Handle player hits
+        let player_hitbox_opts: [Option<Rect>; INPUT_PLAYER_COUNT] =
+            self.players.iter()
+            .map(|player| player.get_hitbox())
+            .collect::<Vec<_>>().try_into().unwrap();
+        let player_hurtboxes: [Rect; INPUT_PLAYER_COUNT] =
+            self.players.iter()
+            .map(|player| player.get_hurtbox())
+            .collect::<Vec<_>>().try_into().unwrap();
+
+        for index in 0..INPUT_PLAYER_COUNT {
+            let opp_index = if index == 0 { 1 } else { 0 };
+            if let Some(hitbox) = &player_hitbox_opts[index] {
+                let intersects_opp_hitbox = match &player_hitbox_opts[opp_index] {
+                    Some(opp_hitbox) => hitbox.intersects(&opp_hitbox),
+                    None => false
+                };
+                if !intersects_opp_hitbox && hitbox.intersects(&player_hurtboxes[opp_index]) {
+                    self.players[opp_index].handle_hit();
+                }
+            }
+        }
+
+        // Update parallax
         self.parallax_x = (self.parallax_x + PARALLAX_SPEED) % PARALLAX_WIDTH;
 
+        // Toggle debug modes
         if input_is_action_just_pressed(InputPlayer::One, InputAction::Start) {
             self.debug_mode = (self.debug_mode + 1) % DEBUG_MODE_COUNT;
         }
@@ -162,10 +189,10 @@ impl GameState {
             // Player hitboxes
             for player in self.players.iter() {
                 let hitbox = player.get_hitbox();
-                if hitbox.size.x == 0.0 {
-                    continue;
+                match hitbox {
+                    Some(collider) => render_draw_rect(&rect_color_red, collider.position, collider.size),
+                    None => ()
                 }
-                render_draw_rect(&rect_color_red, hitbox.position, hitbox.size);
             }
         }
 

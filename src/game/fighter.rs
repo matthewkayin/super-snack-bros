@@ -24,8 +24,16 @@ const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
 enum FighterMode {
     Idle,
     JumpSquat,
+    Hitstun,
     PunchGround1,
     PunchGround2
+}
+
+#[repr(i8)]
+#[derive(PartialEq, Eq)]
+enum FighterDirection {
+    Right = 1,
+    Left = -1
 }
 
 #[derive(PartialEq, Eq)]
@@ -41,46 +49,58 @@ struct FighterInput {
 
 pub struct Fighter {
     player: InputPlayer,
-    pub sprite: Sprite,
     mode: FighterMode,
     animation: AnimationInstance,
     input_queue: VecDeque<FighterInput>,
 
+    pub sprite: Sprite,
+    sprite_frame_size: Vec2,
+
     pub position: Vec2,
     pub velocity: Vec2,
-    direction: i32,
+    direction: FighterDirection,
 
     has_double_jump: bool,
     is_grounded: bool,
     coyote_timer: u32,
-    jump_timer: u32
+    jump_timer: u32,
+
+    hitstun_timer: u32
 }
 
 impl Fighter {
     pub fn new(player: InputPlayer) -> Self {
+        let sprite = match player {
+            InputPlayer::One => Sprite::CrabOrange,
+            InputPlayer::Two => Sprite::CrabGreen,
+        };
+
         Fighter {
             player,
-            sprite: match player {
-                InputPlayer::One => Sprite::CrabOrange,
-                InputPlayer::Two => Sprite::CrabGreen,
-            },
             mode: FighterMode::Idle,
             animation: Animation::CrabIdle.instance(),
             input_queue: VecDeque::new(),
 
+            sprite,
+            sprite_frame_size: render_get_sprite_frame_size(sprite),
+
             position: Vec2::new(0.0, 0.0),
             velocity: Vec2::new(0.0, 0.0),
-            direction: if player == InputPlayer::One { 1 } else { -1 },
+            direction: match player {
+                InputPlayer::One => FighterDirection::Right,
+                InputPlayer::Two => FighterDirection::Left
+            },
 
             has_double_jump: false,
             is_grounded: false,
             coyote_timer: 0,
-            jump_timer: 0
+            jump_timer: 0,
+
+            hitstun_timer: 0
         }
     }
 
     pub fn update(&mut self, colliders: &Vec<Rect>) {
-        // Animation
         if self.animation.name != self.get_expected_animation() {
             self.reset_animation();
         }
@@ -119,13 +139,25 @@ impl Fighter {
         // UPDATE
 
         let mut jumped_this_frame = false;
-        let di = self.get_directional_input();
-
         match self.mode {
             FighterMode::Idle => {
+                let di = self.get_directional_input();
+
                 // Update direction
                 if self.is_grounded && di != 0.0 {
-                    self.direction = di as i32;
+                    self.direction = if di > 0.0 {
+                        FighterDirection::Right
+                    } else {
+                        FighterDirection::Left
+                    };
+                }
+
+                // Turn around on the spot when grounded
+                if self.is_grounded &&
+                    ((di == 1.0 && self.velocity.x < 0.0) ||
+                    (di == -1.0 && self.velocity.x > 0.0))
+                {
+                    self.velocity.x = 0.0;
                 }
             },
             FighterMode::JumpSquat => {
@@ -138,6 +170,12 @@ impl Fighter {
                     jumped_this_frame = true;
                 }
             },
+            FighterMode::Hitstun => {
+                self.hitstun_timer -= 1;
+                if self.hitstun_timer == 0 {
+                    self.mode = FighterMode::Idle
+                }
+            },
             FighterMode::PunchGround1 | FighterMode::PunchGround2 => {
                 if self.animation.is_finished() {
                     self.mode = FighterMode::Idle;
@@ -147,13 +185,120 @@ impl Fighter {
 
         // MOVE
 
-        // Turn around on the spot when grounded
-        if self.is_grounded &&
-            ((di == 1.0 && self.velocity.x < 0.0) ||
-            (di == -1.0 && self.velocity.x > 0.0))
-        {
-            self.velocity.x = 0.0;
+        let was_grounded = self.is_grounded;
+        self.update_velocity();
+        self.is_grounded = false;
+        self.move_x(colliders);
+        self.move_y(colliders);
+
+        // Coyote timer
+        if !self.is_grounded && was_grounded && !jumped_this_frame {
+            self.coyote_timer = FIGHTER_COYOTE_TIMER_DURATION;
         }
+        if self.coyote_timer != 0 {
+            self.coyote_timer -= 1;
+        }
+
+        // Reset jumps remaining
+        if self.is_grounded {
+            self.has_double_jump = true;
+        }
+    }
+
+    // QUEUE INPUT
+
+    fn queue_input(&mut self, typ: FighterInputType) {
+        if self.input_queue.len() == FIGHTER_INPUT_QUEUE_MAX_SIZE {
+            self.input_queue.pop_front();
+        }
+        self.input_queue.push_back(FighterInput {
+            typ,
+            ttl: FIGHTER_INPUT_TTL
+        });
+    }
+
+    // HANDLE INPUT
+
+    fn handle_input_jump(&mut self) {
+        if self.can_ground_jump() {
+            // Begin jump
+            self.mode = FighterMode::JumpSquat;
+            self.reset_animation();
+            self.jump_timer = FIGHTER_JUMP_SQUAT_DURATION;
+            self.coyote_timer = 0;
+        } else if self.has_double_jump {
+            self.jump();
+            self.has_double_jump = false;
+        }
+    }
+
+    fn handle_input_punch(&mut self) {
+        if self.is_grounded {
+            if self.mode == FighterMode::Idle {
+                self.mode = FighterMode::PunchGround1;
+                self.reset_animation();
+            } else if self.mode == FighterMode::PunchGround1 && self.animation.is_on_last_frame() {
+                self.mode = FighterMode::PunchGround2;
+                self.reset_animation();
+            }
+        }
+    }
+
+    // JUMP
+
+    fn can_ground_jump(&self) -> bool {
+        (self.is_grounded || self.coyote_timer != 0) &&
+        self.mode == FighterMode::Idle
+    }
+
+    fn jump(&mut self) {
+        self.velocity.y = if self.can_ground_jump() && !input_is_action_pressed(self.player, InputAction::Up) {
+            FIGHTER_JUMP_SHORT_HOP_ACCELERATION
+        } else {
+            FIGHTER_JUMP_ACCELERATION
+        };
+    }
+
+    fn get_directional_input(&self) -> f32 {
+        let can_di = self.mode == FighterMode::Idle;
+        if can_di && input_is_action_pressed(self.player, InputAction::Right) {
+            1.0
+        } else if can_di && input_is_action_pressed(self.player, InputAction::Left) {
+            -1.0
+        } else {
+            0.0
+        }
+    }
+
+    // ANIMATION
+
+    fn reset_animation(&mut self) {
+        self.animation = self.get_expected_animation().instance();
+    }
+
+    fn get_expected_animation(&self) -> Animation {
+        match self.mode {
+            FighterMode::Idle => {
+                if !self.is_grounded {
+                    return Animation::CrabFall
+                }
+
+                if self.velocity.x != 0.0 {
+                    return Animation::CrabWalk
+                }
+
+                Animation::CrabIdle
+            },
+            FighterMode::JumpSquat => Animation::CrabJump,
+            FighterMode::Hitstun => Animation::CrabHurt,
+            FighterMode::PunchGround1 | FighterMode::PunchGround2 => Animation::CrabPunch
+        }
+    }
+
+    // MOVE
+
+    fn update_velocity(&mut self) {
+        let di = self.get_directional_input();
 
         // Deceleration
         if di == 0.0 && self.velocity.x > 0.0 {
@@ -172,15 +317,14 @@ impl Fighter {
             self.velocity.x = 0.0;
         }
 
+        // Gravity
         self.velocity.y += FIGHTER_GRAVITY;
         if self.velocity.y > FIGHTER_FALL_SPEED {
             self.velocity.y = FIGHTER_FALL_SPEED;
         }
+    }
 
-        let was_grounded = self.is_grounded;
-        self.is_grounded = false;
-
-        // Move X
+    fn move_x(&mut self, colliders: &Vec<Rect>) {
         if self.velocity.x != 0.0 {
             let old_pushbox = self.get_pushbox();
             self.position.x += self.velocity.x;
@@ -213,8 +357,9 @@ impl Fighter {
                 }
             }
         }
+    }
 
-        // Move Y
+    fn move_y(&mut self, colliders: &Vec<Rect>) {
         if self.velocity.y != 0.0 {
             let old_pushbox = self.get_pushbox();
             self.position.y += self.velocity.y;
@@ -234,55 +379,9 @@ impl Fighter {
                 }
             }
         }
-
-        // Coyote timer
-        if !self.is_grounded && was_grounded && !jumped_this_frame {
-            self.coyote_timer = FIGHTER_COYOTE_TIMER_DURATION;
-        }
-        if self.coyote_timer != 0 {
-            self.coyote_timer -= 1;
-        }
-
-        // Reset jumps remaining
-        if self.is_grounded {
-            self.has_double_jump = true;
-        }
     }
 
-    fn queue_input(&mut self, typ: FighterInputType) {
-        if self.input_queue.len() == FIGHTER_INPUT_QUEUE_MAX_SIZE {
-            self.input_queue.pop_front();
-        }
-        self.input_queue.push_back(FighterInput {
-            typ,
-            ttl: FIGHTER_INPUT_TTL
-        });
-    }
-
-    fn handle_input_jump(&mut self) {
-        if self.can_ground_jump() {
-            // Begin jump
-            self.mode = FighterMode::JumpSquat;
-            self.reset_animation();
-            self.jump_timer = FIGHTER_JUMP_SQUAT_DURATION;
-            self.coyote_timer = 0;
-        } else if self.has_double_jump {
-            self.jump();
-            self.has_double_jump = false;
-        }
-    }
-
-    fn handle_input_punch(&mut self) {
-        if self.is_grounded {
-            if self.mode == FighterMode::Idle {
-                self.mode = FighterMode::PunchGround1;
-                self.reset_animation();
-            } else if self.mode == FighterMode::PunchGround1 && self.animation.is_on_last_frame() {
-                self.mode = FighterMode::PunchGround2;
-                self.reset_animation();
-            }
-        }
-    }
+    // COLLISION RESOLUTION
 
     pub fn handle_pushbox_collision(&mut self, collision: Vec2) {
         if self.is_grounded {
@@ -290,82 +389,47 @@ impl Fighter {
         }
     }
 
-    fn can_ground_jump(&self) -> bool {
-        (self.is_grounded || self.coyote_timer != 0) &&
-        self.mode == FighterMode::Idle
-    }
+    // COLLIDERS
 
-    fn get_directional_input(&self) -> f32 {
-        if input_is_action_pressed(self.player, InputAction::Right) {
-            1.0
-        } else if input_is_action_pressed(self.player, InputAction::Left) {
-            -1.0
-        } else {
-            0.0
+    fn get_rect(&self, offset: Vec2, size: Vec2) -> Rect {
+        let offset = match self.direction {
+            FighterDirection::Right => offset,
+            FighterDirection::Left => Vec2::new(self.sprite_frame_size.x - size.x - offset.x, offset.y)
+        };
+        Rect {
+            position: self.position + offset,
+            size
         }
-    }
-
-    fn reset_animation(&mut self) {
-        self.animation = self.get_expected_animation().instance();
-    }
-
-    fn get_expected_animation(&self) -> Animation {
-        if self.mode == FighterMode::JumpSquat {
-            return Animation::CrabJump;
-        }
-        if self.mode == FighterMode::PunchGround1 || self.mode == FighterMode::PunchGround2 {
-            return Animation::CrabPunch;
-        }
-
-        if !self.is_grounded {
-            return Animation::CrabFall
-        }
-
-        if self.velocity.x != 0.0 {
-            return Animation::CrabWalk
-        }
-
-        Animation::CrabIdle
     }
 
     pub fn get_pushbox(&self) -> Rect {
-        Rect {
-            position: self.position + Vec2::new(9.0, 5.0),
-            size: Vec2::new(14.0, 11.0)
-        }
+        self.get_rect(Vec2::new(9.0, 5.0), Vec2::new(14.0, 11.0))
     }
 
     // Receives damage
     pub fn get_hurtbox(&self) -> Rect {
-        Rect {
-            position: self.position + Vec2::new(9.0, 5.0),
-            size: Vec2::new(14.0, 11.0)
-        }
+        self.get_rect(Vec2::new(9.0, 5.0), Vec2::new(14.0, 11.0))
     }
 
     // Deals damage
-    pub fn get_hitbox(&self) -> Rect {
+    pub fn get_hitbox(&self) -> Option<Rect> {
         match self.mode {
-            FighterMode::PunchGround1 | FighterMode::PunchGround2 => Rect {
-                position: self.position + Vec2::new(20.0, 3.0),
-                size: Vec2::new(12.0, 7.0)
-            },
-            _ => Rect {
-                position: Vec2::ZERO,
-                size: Vec2::ZERO
-            }
+            FighterMode::PunchGround1 | FighterMode::PunchGround2 => Some(
+                self.get_rect(Vec2::new(20.0, 3.0), Vec2::new(12.0, 7.0))
+            ),
+            _ => None
         }
     }
 
-    fn jump(&mut self) {
-        self.velocity.y = if self.can_ground_jump() && !input_is_action_pressed(self.player, InputAction::Up) {
-            FIGHTER_JUMP_SHORT_HOP_ACCELERATION
-        } else {
-            FIGHTER_JUMP_ACCELERATION
-        };
+    // ON HIT
+
+    pub fn handle_hit(&mut self) {
+        self.velocity = Vec2::ZERO;
+        self.mode = FighterMode::Hitstun;
+        self.hitstun_timer = 5;
     }
 
     pub fn render(&self) {
-        render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == -1);
+        render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == FighterDirection::Left);
     }
 }

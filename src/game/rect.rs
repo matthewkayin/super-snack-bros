@@ -1,5 +1,6 @@
 use glam::Vec2;
 
+#[derive(Debug)]
 pub struct Rect {
     pub position: Vec2,
     pub size: Vec2
