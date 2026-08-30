@@ -1,8 +1,8 @@
 {
   "$schema": "https://rcade.dev/manifest.schema.json",
-  "name": "super-snack-bros",
-  "display_name": "Super Snack Bros",
-  "description": "Fight your friends to get snacks from the snacktopus.",
+  "name": "splash-bros",
+  "display_name": "Super Splash Bros",
+  "description": "Platform fighting ~under the sea~",
   "visibility": "public",
   "authors": [
     {
