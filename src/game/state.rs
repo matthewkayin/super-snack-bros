@@ -61,9 +61,9 @@ impl GameState {
             player.update(&self.level_platforms);
         }
 
-        let pushbox_collision = self.players[0].get_pushbox().get_collision(&self.players[1].get_pushbox());
-        self.players[0].handle_pushbox_collision(pushbox_collision);
-        self.players[1].handle_pushbox_collision(-pushbox_collision);
+        let pushbox_collision = self.players[0].get_pushbox().get_collision_x(&self.players[1].get_pushbox());
+        self.players[0].handle_pushbox_collision(Vec2::new(pushbox_collision, 0.0));
+        self.players[1].handle_pushbox_collision(Vec2::new(-pushbox_collision, 0.0));
 
         self.parallax_x = (self.parallax_x + PARALLAX_SPEED) % PARALLAX_WIDTH;
     }

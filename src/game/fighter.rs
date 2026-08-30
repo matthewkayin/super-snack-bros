@@ -190,12 +190,7 @@ impl Fighter {
             let pushbox = self.get_pushbox();
 
             for collider in colliders.iter() {
-                // First, check that we are aligned on the x axis
-                let horizontally_overlapping = !(
-                    pushbox.position.x + pushbox.size.x <= collider.position.x ||
-                    pushbox.position.x >= collider.position.x + collider.size.x);
-
-                if horizontally_overlapping {
+                if pushbox.intersects_horizontally(collider) {
                     if self.velocity.y > 0.0 &&
                         old_pushbox.position.y <= collider.position.y &&
                         pushbox.position.y + pushbox.size.y > collider.position.y
@@ -232,61 +227,7 @@ impl Fighter {
         }
     }
 
-    fn move_and_collide(&mut self, velocity: Vec2, colliders: &Vec<Rect>) -> Vec2 {
-        let mut collision_normal = Vec2::ZERO;
-        let mut shortest_collider_distance = velocity.length();
-
-        let mut predicted_pushbox = self.get_pushbox();
-        predicted_pushbox.position += velocity;
-        for collider in colliders.iter() {
-            if !predicted_pushbox.intersects(collider) {
-                continue;
-            }
-            if velocity.x > 0.0 {
-                let distance_to_collider = collider.position.x - (predicted_pushbox.position.x + predicted_pushbox.size.x);
-                if distance_to_collider < shortest_collider_distance {
-                    shortest_collider_distance = distance_to_collider;
-                    collision_normal = Vec2::new(-1.0, 0.0);
-                }
-            } else if velocity.x < 0.0 {
-                let distance_to_collider = (collider.position.x + collider.size.x) - predicted_pushbox.position.x;
-                if distance_to_collider < shortest_collider_distance {
-                    shortest_collider_distance = distance_to_collider;
-                    collision_normal = Vec2::new(1.0, 0.0);
-                }
-            } else if velocity.y > 0.0 {
-                let distance_to_collider = collider.position.y - (predicted_pushbox.position.y + predicted_pushbox.size.y);
-                if distance_to_collider < shortest_collider_distance {
-                    shortest_collider_distance = distance_to_collider;
-                    collision_normal = Vec2::new(0.0, -1.0);
-                }
-            } else if velocity.y < 0.0 {
-                let distance_to_collider = (collider.position.y + collider.size.y) - collider.position.y;
-                if distance_to_collider < shortest_collider_distance {
-                    shortest_collider_distance = distance_to_collider;
-                    collision_normal = Vec2::new(0.0, 1.0);
-                }
-            }
-        }
-
-        let mut actual_velocity = velocity;
-        if collision_normal != Vec2::ZERO {
-            if velocity.x != 0.0 {
-                actual_velocity = Vec2::new(shortest_collider_distance, 0.0);
-            } else {
-                actual_velocity = Vec2::new(0.0, shortest_collider_distance);
-            }
-
-            // Apply a safe margin so that we don't accidentally overlap due to float error
-            actual_velocity += 0.001 * collision_normal;
-        }
-        self.position += actual_velocity;
-
-        collision_normal
-    }
-
     pub fn handle_pushbox_collision(&mut self, collision: Vec2) {
-        // if self.was_grounded
         if self.is_grounded {
             self.position.x += collision.x * 0.5;
         }
