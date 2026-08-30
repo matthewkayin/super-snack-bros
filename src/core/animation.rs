@@ -89,6 +89,11 @@ impl AnimationInstance {
     pub fn is_finished(&self) -> bool {
         self.loops_remaining == 0
     }
+
+    pub fn is_on_last_frame(&self) -> bool {
+        let animation_data: &'static AnimationData = self.name.get_data();
+        self.frame_index == animation_data.frames.len() - 1
+    }
 }
 
 static ANIMATION_DATA: OnceLock<Vec<AnimationData>> = OnceLock::new();
@@ -150,9 +155,9 @@ pub fn animation_init() {
     animation_data[Animation::CrabPunch as usize] = AnimationData {
         loops: 1,
         frames: vec![
-            AnimationFrame { h_frame: 0, v_frame: 1, duration: 8 },
-            AnimationFrame { h_frame: 1, v_frame: 1, duration: 8 },
-            AnimationFrame { h_frame: 2, v_frame: 1, duration: 8 }
+            AnimationFrame { h_frame: 0, v_frame: 1, duration: 4 },
+            AnimationFrame { h_frame: 1, v_frame: 1, duration: 4 },
+            AnimationFrame { h_frame: 2, v_frame: 1, duration: 4 }
         ]
     };
 
