@@ -65,7 +65,8 @@ pub struct Fighter {
     coyote_timer: u32,
     jump_timer: u32,
 
-    hitstun_timer: u32
+    hitstun_timer: u32,
+    damage: f32
 }
 
 impl Fighter {
@@ -96,7 +97,8 @@ impl Fighter {
             coyote_timer: 0,
             jump_timer: 0,
 
-            hitstun_timer: 0
+            hitstun_timer: 0,
+            damage: 0.0
         }
     }
 

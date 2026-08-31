@@ -1,8 +1,8 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{CanvasRenderingContext2d, Event, HtmlImageElement, HtmlCanvasElement};
-use strum_macros::EnumIter;
-use strum::IntoEnumIterator;
+use strum_macros::{EnumIter, EnumCount};
+use strum::{IntoEnumIterator, EnumCount};
 use glam::Vec2;
 use std::cell::OnceCell;
 
@@ -30,9 +30,26 @@ struct SpriteData {
     pub frame_height: u32
 }
 
+#[derive(Copy, Clone)]
+pub enum BitmapFont {
+    Numbers28,
+    Numbers16
+}
+
+#[derive(EnumCount)]
+#[repr(u32)]
+pub enum BitmapFontColor {
+    White,
+    Yellow,
+    Red
+}
+
 struct Renderer {
     context: CanvasRenderingContext2d,
-    sprite_data: Vec<SpriteData>
+    sprite_data: Vec<SpriteData>,
+
+    font_numbers28: HtmlImageElement,
+    font_numbers16: HtmlImageElement
 }
 
 fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
@@ -112,11 +129,13 @@ pub async fn render_init() {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
 
+    // Create canvas
     let canvas = document
         .create_element("canvas").unwrap()
         .dyn_into::<HtmlCanvasElement>().unwrap();
     canvas.set_id("game-canvas");
 
+    // Set canvas style
     let style = canvas.style();
     style.set_property("width", "100vw").unwrap();
     style.set_property("height", "100vh").unwrap();
@@ -125,17 +144,16 @@ pub async fn render_init() {
     style.set_property("image-rendering", "-moz-crisp-edges").unwrap();
     style.set_property("image-rendering", "crisp-edges").unwrap();
 
+    // Add canvas to body
     let body = document.body().unwrap();
     body.append_child(&canvas).unwrap();
 
     canvas.set_width(canvas.client_width() as u32);
     canvas.set_height(canvas.client_height() as u32);
-    let message = format!("canvas width {} height {}", canvas.client_width(), canvas.client_height());
-    web_sys::console::log_1(&message.into());
 
+    // Get context
     let context = canvas.get_context("2d").unwrap().unwrap()
         .dyn_into::<CanvasRenderingContext2d>().unwrap();
-
     context.set_image_smoothing_enabled(false);
 
     // Load sprites
@@ -144,10 +162,16 @@ pub async fn render_init() {
         sprite_data.push(render_load_sprite(sprite_name).await.unwrap());
     }
 
+    // Load bitmap font
+    let font_numbers28 = render_load_image("res/numbers28.png").await.unwrap();
+    let font_numbers16 = render_load_image("res/numbers16.png").await.unwrap();
+
     RENDERER.with(|cell| {
         cell.get_or_init(|| Renderer {
             context,
-            sprite_data
+            sprite_data,
+            font_numbers28,
+            font_numbers16
         });
     });
 }
@@ -220,10 +244,83 @@ pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32,
             position_x,
             position_y,
             sprite_data.frame_width as f64, // Dest Width
-            sprite_data.frame_height as f64).unwrap(); // Dest Height
+            sprite_data.frame_height as f64) // Dest Height
+        .unwrap();
 
         if flip_h {
             renderer.context.restore();
         }
     });
+}
+
+pub fn render_bitmap_text(text: &str, font: BitmapFont, color: BitmapFontColor, position: Vec2) {
+    RENDERER.with(|cell| {
+        let renderer = cell.get().unwrap();
+        let image = match font {
+            BitmapFont::Numbers28 => &renderer.font_numbers28,
+            BitmapFont::Numbers16 => &renderer.font_numbers16,
+        };
+        let glyph_height = (image.height() / (BitmapFontColor::COUNT as u32)) as f64;
+        let source_y = glyph_height * (color as u32 as f64);
+
+        let mut position = position;
+        for character in text.chars() {
+            let (glyph_offset, glyph_width) = render_get_bitmap_glyph_offset_and_width(font, character);
+            renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+                &image,
+                glyph_offset as f64,
+                source_y,
+                glyph_width as f64,
+                glyph_height,
+                position.x as f64,
+                position.y as f64,
+                glyph_width as f64,
+                glyph_height as f64)
+            .unwrap();
+            position.x += glyph_width as f32;
+        }
+    });
+}
+
+fn render_get_bitmap_glyph_offset_and_width(font: BitmapFont, character: char) -> (u32, u32) {
+    match font {
+        BitmapFont::Numbers28 => {
+            match character {
+                '0' => (0, 11),
+                '1' => (12, 9),
+                '2' => (21, 12),
+                '3' => (33, 12),
+                '4' => (45, 14),
+                '5' => (59, 11),
+                '6' => (70, 12),
+                '7' => (82, 12),
+                '8' => (94, 14),
+                '9' => (108, 10),
+                _ => {
+                    assert!(false);
+                    (0, 0)
+                }
+            }
+        },
+        BitmapFont::Numbers16 => {
+            match character {
+                '0' => (0, 7),
+                '1' => (7, 5),
+                '2' => (12, 7),
+                '3' => (19, 7),
+                '4' => (26, 8),
+                '5' => (34, 6),
+                '6' => (40, 7),
+                '7' => (47, 7),
+                '8' => (54, 8),
+                '9' => (62, 6),
+                '.' => (68, 3),
+                '%' => (71, 8),
+                _ => {
+                    assert!(false);
+                    (0, 0)
+                }
+            }
+        }
+    }
 }
