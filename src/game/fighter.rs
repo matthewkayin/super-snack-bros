@@ -30,7 +30,7 @@ enum FighterMode {
 }
 
 #[repr(i8)]
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 enum FighterDirection {
     Right = 1,
     Left = -1
@@ -47,6 +47,14 @@ struct FighterInput {
     ttl: u32
 }
 
+#[derive(Debug)]
+pub struct FighterHitInfo {
+    pub damage: f32,
+    pub knockback_strength: f32,
+    pub knockback_direction: Vec2,
+    pub hitbox: Rect
+}
+
 pub struct Fighter {
     player: InputPlayer,
     mode: FighterMode,
@@ -60,13 +68,16 @@ pub struct Fighter {
     pub velocity: Vec2,
     direction: FighterDirection,
 
+    // Jump
     has_double_jump: bool,
     is_grounded: bool,
     coyote_timer: u32,
     jump_timer: u32,
 
+    // Hit
     hitstun_timer: u32,
-    pub damage: f32
+    pub damage: f32,
+    pub has_hit: bool,
 }
 
 impl Fighter {
@@ -98,7 +109,8 @@ impl Fighter {
             jump_timer: 0,
 
             hitstun_timer: 0,
-            damage: 0.0
+            damage: 0.0,
+            has_hit: false
         }
     }
 
@@ -238,9 +250,11 @@ impl Fighter {
         if self.is_grounded {
             if self.mode == FighterMode::Idle {
                 self.mode = FighterMode::PunchGround1;
+                self.has_hit = true;
                 self.reset_animation();
             } else if self.mode == FighterMode::PunchGround1 && self.animation.is_on_last_frame() {
                 self.mode = FighterMode::PunchGround2;
+                self.has_hit = true;
                 self.reset_animation();
             }
         }
@@ -414,10 +428,22 @@ impl Fighter {
     }
 
     // Deals damage
-    pub fn get_hitbox(&self) -> Option<Rect> {
+    pub fn get_hit_info(&self) -> Option<FighterHitInfo> {
+        if !self.has_hit {
+            return None;
+        }
+
+        let knockbox_x_direction = (self.direction as i8) as f32;
         match self.mode {
+            // TODO: only hitbox on hframe
+            // And maybe reduce
             FighterMode::PunchGround1 | FighterMode::PunchGround2 => Some(
-                self.get_rect(Vec2::new(20.0, 3.0), Vec2::new(12.0, 7.0))
+                FighterHitInfo {
+                    damage: 1.0,
+                    knockback_strength: 0.3,
+                    knockback_direction: Vec2::new(1.0 * knockbox_x_direction, -0.3).normalize(),
+                    hitbox: self.get_rect(Vec2::new(20.0, 3.0), Vec2::new(12.0, 7.0))
+                }
             ),
             _ => None
         }
@@ -425,8 +451,10 @@ impl Fighter {
 
     // ON HIT
 
-    pub fn handle_hit(&mut self) {
-        self.velocity = Vec2::ZERO;
+    pub fn handle_hit(&mut self, damage: f32, knockback_strength: f32, knockback_direction: Vec2) {
+        self.damage += damage;
+        let knockback_strength = knockback_strength + ((self.damage / 10.0) + ((self.damage * damage) / 20.0));
+        self.velocity = knockback_strength * knockback_direction;
         self.mode = FighterMode::Hitstun;
         self.hitstun_timer = 5;
     }

@@ -106,9 +106,9 @@ impl GameState {
         self.players[1].handle_pushbox_collision(Vec2::new(-pushbox_collision, 0.0));
 
         // Handle player hits
-        let player_hitbox_opts: [Option<Rect>; INPUT_PLAYER_COUNT] =
+        let player_hit_info_opts: [Option<FighterHitInfo>; INPUT_PLAYER_COUNT] =
             self.players.iter()
-            .map(|player| player.get_hitbox())
+            .map(|player| player.get_hit_info())
             .collect::<Vec<_>>().try_into().unwrap();
         let player_hurtboxes: [Rect; INPUT_PLAYER_COUNT] =
             self.players.iter()
@@ -117,13 +117,14 @@ impl GameState {
 
         for index in 0..INPUT_PLAYER_COUNT {
             let opp_index = if index == 0 { 1 } else { 0 };
-            if let Some(hitbox) = &player_hitbox_opts[index] {
-                let intersects_opp_hitbox = match &player_hitbox_opts[opp_index] {
-                    Some(opp_hitbox) => hitbox.intersects(&opp_hitbox),
+            if let Some(hit_info) = &player_hit_info_opts[index] {
+                let intersects_opp_hitbox = match &player_hit_info_opts[opp_index] {
+                    Some(opp_hit_info) => hit_info.hitbox.intersects(&opp_hit_info.hitbox),
                     None => false
                 };
-                if !intersects_opp_hitbox && hitbox.intersects(&player_hurtboxes[opp_index]) {
-                    self.players[opp_index].handle_hit();
+                if !intersects_opp_hitbox && hit_info.hitbox.intersects(&player_hurtboxes[opp_index]) {
+                    self.players[opp_index].handle_hit(hit_info.damage, hit_info.knockback_strength, hit_info.knockback_direction);
+                    self.players[index].has_hit = false;
                 }
             }
         }
@@ -188,9 +189,9 @@ impl GameState {
 
             // Player hitboxes
             for player in self.players.iter() {
-                let hitbox = player.get_hitbox();
-                match hitbox {
-                    Some(collider) => render_draw_rect(&rect_color_red, collider.position, collider.size),
+                let hit_info_opt = player.get_hit_info();
+                match hit_info_opt {
+                    Some(hit_info) => render_draw_rect(&rect_color_red, hit_info.hitbox.position, hit_info.hitbox.size),
                     None => ()
                 }
             }
