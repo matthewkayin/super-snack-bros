@@ -14,7 +14,8 @@ pub enum Sprite {
     CrabOrange,
     CrabGreen,
     Parallax,
-    Tileset
+    Tileset,
+    HealthFrame
 }
 
 struct SpriteParams {
@@ -36,7 +37,7 @@ pub enum BitmapFont {
     Numbers16
 }
 
-#[derive(EnumCount)]
+#[derive(EnumCount, Copy, Clone)]
 #[repr(u32)]
 pub enum BitmapFontColor {
     White,
@@ -73,6 +74,11 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
             path: "res/tileset.png",
             h_frames: 13,
             v_frames: 3
+        },
+        Sprite::HealthFrame => SpriteParams {
+            path: "res/health_frame.png",
+            h_frames: 2,
+            v_frames: 1
         }
     }
 }
@@ -253,7 +259,8 @@ pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32,
     });
 }
 
-pub fn render_bitmap_text(text: &str, font: BitmapFont, color: BitmapFontColor, position: Vec2) {
+// Returns the width of the rendered text
+pub fn render_bitmap_text(text: &str, font: BitmapFont, color: BitmapFontColor, position: Vec2) -> f32 {
     RENDERER.with(|cell| {
         let renderer = cell.get().unwrap();
         let image = match font {
@@ -263,7 +270,7 @@ pub fn render_bitmap_text(text: &str, font: BitmapFont, color: BitmapFontColor, 
         let glyph_height = (image.height() / (BitmapFontColor::COUNT as u32)) as f64;
         let source_y = glyph_height * (color as u32 as f64);
 
-        let mut position = position;
+        let mut text_width: f32 = 0.0;
         for character in text.chars() {
             let (glyph_offset, glyph_width) = render_get_bitmap_glyph_offset_and_width(font, character);
             renderer.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
@@ -272,21 +279,23 @@ pub fn render_bitmap_text(text: &str, font: BitmapFont, color: BitmapFontColor, 
                 source_y,
                 glyph_width as f64,
                 glyph_height,
-                position.x as f64,
+                (position.x + text_width) as f64,
                 position.y as f64,
                 glyph_width as f64,
                 glyph_height as f64)
             .unwrap();
-            position.x += glyph_width as f32;
+            text_width += glyph_width as f32;
         }
-    });
+
+        text_width
+    })
 }
 
 fn render_get_bitmap_glyph_offset_and_width(font: BitmapFont, character: char) -> (u32, u32) {
     match font {
         BitmapFont::Numbers28 => {
             match character {
-                '0' => (0, 11),
+                '0' => (0, 12),
                 '1' => (12, 9),
                 '2' => (21, 12),
                 '3' => (33, 12),

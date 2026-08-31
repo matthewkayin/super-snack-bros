@@ -66,7 +66,7 @@ pub struct Fighter {
     jump_timer: u32,
 
     hitstun_timer: u32,
-    damage: f32
+    pub damage: f32
 }
 
 impl Fighter {

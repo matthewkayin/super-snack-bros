@@ -196,6 +196,10 @@ impl GameState {
             }
         }
 
+        // Health clusters
+        self.render_health_cluster(InputPlayer::One);
+        self.render_health_cluster(InputPlayer::Two);
+
         // Debug UI
         let text_position = Vec2::new(2.0, 10.0);
         match self.debug_mode {
@@ -230,5 +234,40 @@ impl GameState {
                 render_sprite(Sprite::Tileset, platform.position + Vec2::new((x * TILE_SIZE_U32) as f32, (y * TILE_SIZE_U32) as f32), h_frame, v_frame, false);
             }
         }
+    }
+
+    fn render_health_cluster(&self, player: InputPlayer) {
+        let player_index = player as usize;
+
+        // Render frame
+        let frame_y = 237.0;
+        let frame_x = match player {
+            InputPlayer::One => 64.0,
+            InputPlayer::Two => 202.0
+        };
+        let frame_position = Vec2::new(frame_x, frame_y);
+        render_sprite(Sprite::HealthFrame, frame_position, player_index as u32, 0, false);
+
+        // Render player sprite
+        let sprite_position = frame_position + Vec2::new(-4.0, 4.0);
+        render_sprite(self.players[player_index].sprite, sprite_position, 0, 0, false);
+
+        // Determine font color
+        let font_color = match self.players[player_index].damage {
+            66.6.. => BitmapFontColor::Red,
+            33.3.. => BitmapFontColor::Yellow,
+            _ => BitmapFontColor::White
+        };
+
+        // Render damage text
+        let damage_int_part = self.players[player_index].damage.floor();
+        let damage_int_part_str = format!("{}", damage_int_part as u32);
+        let text_position = frame_position + Vec2::new(28.0, 7.0);
+        let text_width = render_bitmap_text(&damage_int_part_str, BitmapFont::Numbers28, font_color, text_position);
+
+        let damage_frac_part = ((self.players[player_index].damage - damage_int_part) * 10.0).floor();
+        let damage_frag_part_str = format!(".{}%", damage_frac_part as u32);
+        let text_position = text_position + Vec2::new(text_width, 7.0);
+        render_bitmap_text(&damage_frag_part_str, BitmapFont::Numbers16, font_color, text_position);
     }
 }
