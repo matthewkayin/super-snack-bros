@@ -11,7 +11,8 @@ pub enum Animation {
     CrabJump,
     CrabFall,
     CrabHurt,
-    CrabPunch
+    CrabPunch,
+    CrabPunch2
 }
 
 struct AnimationFrame {
@@ -22,6 +23,7 @@ struct AnimationFrame {
 
 struct AnimationData {
     loops: u32,
+    hit_range: Option<(usize, usize)>,
     frames: Vec<AnimationFrame>
 }
 
@@ -90,9 +92,20 @@ impl AnimationInstance {
         self.loops_remaining == 0
     }
 
-    pub fn is_on_last_frame(&self) -> bool {
+    pub fn is_on_hit_frame(&self) -> bool {
         let animation_data: &'static AnimationData = self.name.get_data();
-        self.frame_index == animation_data.frames.len() - 1
+        match animation_data.hit_range {
+            Some((hit_start, hit_end)) => self.frame_index >= hit_start && self.frame_index < hit_end,
+            None => false
+        }
+    }
+
+    pub fn is_on_recovery_frame(&self) -> bool {
+        let animation_data: &'static AnimationData = self.name.get_data();
+        match animation_data.hit_range {
+            Some((_, hit_end)) => self.frame_index >= hit_end,
+            None => false
+        }
     }
 }
 
@@ -103,6 +116,7 @@ pub fn animation_init() {
     for _animation in Animation::iter() {
         animation_data.push(AnimationData {
             frames: Vec::new(),
+            hit_range: None,
             loops: 0
         });
     }
@@ -110,6 +124,7 @@ pub fn animation_init() {
     // Crab Idle
     animation_data[Animation::CrabIdle as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
+        hit_range: None,
         frames: vec![
             AnimationFrame { h_frame: 0, v_frame: 0, duration: 10 },
             AnimationFrame { h_frame: 1, v_frame: 0, duration: 10 }
@@ -119,6 +134,7 @@ pub fn animation_init() {
     // Crab Walk Forward
     animation_data[Animation::CrabWalk as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
+        hit_range: None,
         frames: vec![
             AnimationFrame { h_frame: 0, v_frame: 0, duration: 8 },
             AnimationFrame { h_frame: 2, v_frame: 0, duration: 8 },
@@ -130,6 +146,7 @@ pub fn animation_init() {
     // Crab Jump
     animation_data[Animation::CrabJump as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
+        hit_range: None,
         frames: vec![
             AnimationFrame { h_frame: 5, v_frame: 0, duration: 8 }
         ]
@@ -138,6 +155,7 @@ pub fn animation_init() {
     // Crab Fall
     animation_data[Animation::CrabFall as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
+        hit_range: None,
         frames: vec![
             AnimationFrame { h_frame: 6, v_frame: 0, duration: 8 }
         ]
@@ -146,6 +164,7 @@ pub fn animation_init() {
     // Crab Hurt
     animation_data[Animation::CrabHurt as usize] = AnimationData {
         loops: ANIMATION_LOOPS_INDEFINITELY,
+        hit_range: None,
         frames: vec![
             AnimationFrame { h_frame: 7, v_frame: 0, duration: 8 }
         ]
@@ -154,10 +173,25 @@ pub fn animation_init() {
     // Punch
     animation_data[Animation::CrabPunch as usize] = AnimationData {
         loops: 1,
+        hit_range: Some((1, 2)),
         frames: vec![
             AnimationFrame { h_frame: 0, v_frame: 1, duration: 4 },
             AnimationFrame { h_frame: 1, v_frame: 1, duration: 4 },
             AnimationFrame { h_frame: 2, v_frame: 1, duration: 4 }
+        ]
+    };
+
+    // Punch 2
+    animation_data[Animation::CrabPunch2 as usize] = AnimationData {
+        loops: 1,
+        hit_range: Some((2, 3)),
+        frames: vec![
+            AnimationFrame { h_frame: 3, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 5, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 6, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 3, v_frame: 1, duration: 4  },
         ]
     };
 

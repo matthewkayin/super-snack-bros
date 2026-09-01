@@ -25,8 +25,9 @@ enum FighterMode {
     Idle,
     JumpSquat,
     Hitstun,
-    PunchGround1,
-    PunchGround2
+    Neutral1,
+    Neutral2,
+    Neutral3
 }
 
 #[repr(i8)]
@@ -36,7 +37,7 @@ enum FighterDirection {
     Left = -1
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 enum FighterInputType {
     Jump,
     Punch
@@ -129,25 +130,26 @@ impl Fighter {
         }
 
         // INPUT QUEUE
+
+        // Reduce TTL on all inputs
         for input in self.input_queue.iter_mut() {
             input.ttl -= 1;
         }
+
+        // Pop any inputs whose TTL is 0
         while !self.input_queue.is_empty() && self.input_queue.front().unwrap().ttl == 0 {
             self.input_queue.pop_front();
         }
-        match self.input_queue.front() {
-            Some(input) => {
-                match input.typ {
-                    FighterInputType::Jump => {
-                        self.handle_input_jump();
-                    },
-                    FighterInputType::Punch => {
-                        self.handle_input_punch();
-                    }
-                }
-                self.input_queue.pop_front();
-            },
-            None => ()
+
+        // Try to handle an input from the queue
+        for index in 0..self.input_queue.len() {
+            let input = self.input_queue.get(index).unwrap();
+            if self.handle_input(input.typ) {
+                // If we handled an input, clear the queue
+                // self.input_queue.clear();
+                self.input_queue.drain(0..index);
+                break;
+            }
         }
 
         // UPDATE
@@ -190,7 +192,7 @@ impl Fighter {
                     self.mode = FighterMode::Idle
                 }
             },
-            FighterMode::PunchGround1 | FighterMode::PunchGround2 => {
+            FighterMode::Neutral1 | FighterMode::Neutral2 | FighterMode::Neutral3 => {
                 if self.animation.is_finished() {
                     self.mode = FighterMode::Idle;
                 }
@@ -233,31 +235,52 @@ impl Fighter {
 
     // HANDLE INPUT
 
-    fn handle_input_jump(&mut self) {
+    fn handle_input(&mut self, input_type: FighterInputType) -> bool {
+        match input_type {
+            FighterInputType::Jump => self.handle_input_jump(),
+            FighterInputType::Punch => self.handle_input_punch()
+        }
+    }
+
+    fn handle_input_jump(&mut self) -> bool {
         if self.can_ground_jump() {
             // Begin jump
             self.mode = FighterMode::JumpSquat;
             self.reset_animation();
             self.jump_timer = FIGHTER_JUMP_SQUAT_DURATION;
             self.coyote_timer = 0;
+
+            return true;
         } else if self.has_double_jump {
             self.jump();
             self.has_double_jump = false;
+
+            return true;
         }
+
+        false
     }
 
-    fn handle_input_punch(&mut self) {
+    fn handle_input_punch(&mut self) -> bool {
         if self.is_grounded {
             if self.mode == FighterMode::Idle {
-                self.mode = FighterMode::PunchGround1;
-                self.has_hit = true;
-                self.reset_animation();
-            } else if self.mode == FighterMode::PunchGround1 && self.animation.is_on_last_frame() {
-                self.mode = FighterMode::PunchGround2;
-                self.has_hit = true;
-                self.reset_animation();
+                self.set_attack_mode(FighterMode::Neutral1);
+            } else if self.mode == FighterMode::Neutral1 && self.animation.is_on_recovery_frame() {
+                self.set_attack_mode(FighterMode::Neutral2);
+            } else if self.mode == FighterMode::Neutral2 && self.animation.is_on_recovery_frame() {
+                self.set_attack_mode(FighterMode::Neutral3);
             }
+
+            return true;
         }
+
+        false
+    }
+
+    fn set_attack_mode(&mut self, mode: FighterMode) {
+        self.mode = mode;
+        self.has_hit = true;
+        self.reset_animation();
     }
 
     // JUMP
@@ -307,7 +330,8 @@ impl Fighter {
             },
             FighterMode::JumpSquat => Animation::CrabJump,
             FighterMode::Hitstun => Animation::CrabHurt,
-            FighterMode::PunchGround1 | FighterMode::PunchGround2 => Animation::CrabPunch
+            FighterMode::Neutral1 | FighterMode::Neutral2 => Animation::CrabPunch,
+            FighterMode::Neutral3 => Animation::CrabPunch2
         }
     }
 
@@ -329,7 +353,7 @@ impl Fighter {
         } else if di == -1.0 && self.velocity.x > -FIGHTER_WALK_SPEED {
             self.velocity.x = (self.velocity.x - FIGHTER_WALK_ACCELERATION).max(-FIGHTER_WALK_SPEED);
         }
-        if self.mode == FighterMode::PunchGround1 || self.mode == FighterMode::PunchGround2 {
+        if self.mode == FighterMode::Neutral1 || self.mode == FighterMode::Neutral2 || self.mode == FighterMode::Neutral3 {
             self.velocity.x = 0.0;
         }
 
@@ -429,23 +453,29 @@ impl Fighter {
 
     // Deals damage
     pub fn get_hit_info(&self) -> Option<FighterHitInfo> {
-        if !self.has_hit {
+        if !self.has_hit || !self.animation.is_on_hit_frame() {
             return None;
         }
 
+
         let knockbox_x_direction = (self.direction as i8) as f32;
         match self.mode {
-            // TODO: only hitbox on hframe
-            // And maybe reduce
-            FighterMode::PunchGround1 | FighterMode::PunchGround2 => Some(
-                FighterHitInfo {
-                    damage: 1.0,
-                    knockback_strength: 0.3,
-                    knockback_direction: Vec2::new(1.0 * knockbox_x_direction, -0.3).normalize(),
-                    hitbox: self.get_rect(Vec2::new(20.0, 3.0), Vec2::new(12.0, 7.0))
-                }
-            ),
-            _ => None
+            FighterMode::Neutral1 | FighterMode::Neutral2 => Some(FighterHitInfo {
+                damage: 2.0,
+                knockback_strength: 2.0,
+                knockback_direction: Vec2::new(1.0 * knockbox_x_direction, -0.3).normalize(),
+                hitbox: self.get_rect(Vec2::new(20.0, 3.0), Vec2::new(12.0, 7.0))
+            }),
+            FighterMode::Neutral3 => Some(FighterHitInfo {
+                damage: 3.5,
+                knockback_strength: 3.0,
+                knockback_direction: Vec2::new(1.0 * knockbox_x_direction, -0.5).normalize(),
+                hitbox: self.get_rect(Vec2::new(16.0, 5.0), Vec2::new(15.0, 8.0))
+            }),
+            _ => {
+                assert!(false);
+                None
+            }
         }
     }
 
@@ -453,7 +483,7 @@ impl Fighter {
 
     pub fn handle_hit(&mut self, damage: f32, knockback_strength: f32, knockback_direction: Vec2) {
         self.damage += damage;
-        let knockback_strength = knockback_strength + ((self.damage / 10.0) + ((self.damage * damage) / 20.0));
+        let knockback_strength = 0.2 * (knockback_strength + ((self.damage / 10.0) + ((self.damage * damage) / 20.0)));
         self.velocity = knockback_strength * knockback_direction;
         self.mode = FighterMode::Hitstun;
         self.hitstun_timer = 5;
