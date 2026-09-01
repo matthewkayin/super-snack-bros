@@ -58,12 +58,12 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
         Sprite::CrabOrange => SpriteParams {
             path: "res/crab_orange.png",
             h_frames: 8,
-            v_frames: 2
+            v_frames: 3
         },
         Sprite::CrabGreen => SpriteParams {
             path: "res/crab_green.png",
             h_frames: 8,
-            v_frames: 2
+            v_frames: 3
         },
         Sprite::Parallax => SpriteParams {
             path: "res/parallax.png",

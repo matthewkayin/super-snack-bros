@@ -10,6 +10,8 @@ const FIGHTER_WALK_SPEED: f32 = 1.5;
 const FIGHTER_WALK_ACCELERATION: f32 = 0.55;
 const FIGHTER_WALK_DECELERATION: f32 = 0.15;
 
+const FIGHTER_SIDE_SMASH_SPEED: f32 = 0.75;
+
 const FIGHTER_GRAVITY: f32 = 0.34;
 const FIGHTER_JUMP_ACCELERATION: f32 = -6.0;
 const FIGHTER_AIR_ACCELERATION: f32 = 1.0;
@@ -28,7 +30,8 @@ enum FighterMode {
     Hitstun,
     Neutral1,
     Neutral2,
-    Neutral3
+    Neutral3,
+    SideSmash
 }
 
 #[repr(i8)]
@@ -41,7 +44,8 @@ enum FighterDirection {
 #[derive(PartialEq, Eq, Copy, Clone)]
 enum FighterInputType {
     Jump,
-    Punch
+    Neutral,
+    SideSmash
 }
 
 struct FighterInput {
@@ -129,7 +133,11 @@ impl Fighter {
             self.queue_input(FighterInputType::Jump);
         }
         if input_is_action_just_pressed(self.player, InputAction::A) {
-            self.queue_input(FighterInputType::Punch);
+            if self.get_directional_input() == 0.0 {
+                self.queue_input(FighterInputType::Neutral);
+            } else {
+                self.queue_input(FighterInputType::SideSmash);
+            }
         }
 
         // INPUT QUEUE
@@ -192,7 +200,10 @@ impl Fighter {
                     self.mode = FighterMode::Idle
                 }
             },
-            FighterMode::Neutral1 | FighterMode::Neutral2 | FighterMode::Neutral3 => {
+            FighterMode::Neutral1 |
+            FighterMode::Neutral2 |
+            FighterMode::Neutral3 |
+            FighterMode::SideSmash => {
                 if self.animation.is_finished() {
                     self.mode = FighterMode::Idle;
                 }
@@ -239,7 +250,8 @@ impl Fighter {
     fn handle_input(&mut self, input_type: FighterInputType) -> bool {
         match input_type {
             FighterInputType::Jump => self.handle_input_jump(),
-            FighterInputType::Punch => self.handle_input_punch()
+            FighterInputType::Neutral => self.handle_input_neutral(),
+            FighterInputType::SideSmash => self.handle_input_side_smash()
         }
     }
 
@@ -265,7 +277,7 @@ impl Fighter {
         false
     }
 
-    fn handle_input_punch(&mut self) -> bool {
+    fn handle_input_neutral(&mut self) -> bool {
         if self.is_grounded() {
             if self.mode == FighterMode::Idle {
                 self.set_attack_mode(FighterMode::Neutral1);
@@ -275,6 +287,15 @@ impl Fighter {
                 self.set_attack_mode(FighterMode::Neutral3);
             }
 
+            return true;
+        }
+
+        false
+    }
+
+    fn handle_input_side_smash(&mut self) -> bool {
+        if self.is_grounded() && self.mode == FighterMode::Idle {
+            self.set_attack_mode(FighterMode::SideSmash);
             return true;
         }
 
@@ -335,7 +356,8 @@ impl Fighter {
             },
             FighterMode::Hitstun => Animation::CrabHurt,
             FighterMode::Neutral1 | FighterMode::Neutral2 => Animation::CrabPunch,
-            FighterMode::Neutral3 => Animation::CrabPunch2
+            FighterMode::Neutral3 => Animation::CrabPunch2,
+            FighterMode::SideSmash => Animation::CrabSideSmash
         }
     }
 
@@ -364,6 +386,9 @@ impl Fighter {
         }
         if self.mode == FighterMode::Neutral1 || self.mode == FighterMode::Neutral2 || self.mode == FighterMode::Neutral3 {
             self.velocity.x = 0.0;
+        }
+        if self.mode == FighterMode::SideSmash {
+            self.velocity.x = ((self.direction as i8) as f32) * FIGHTER_SIDE_SMASH_SPEED;
         }
 
         // Gravity
@@ -478,7 +503,6 @@ impl Fighter {
             return None;
         }
 
-
         let knockbox_x_direction = (self.direction as i8) as f32;
         match self.mode {
             FighterMode::Neutral1 | FighterMode::Neutral2 => Some(FighterHitInfo {
@@ -490,6 +514,12 @@ impl Fighter {
             FighterMode::Neutral3 => Some(FighterHitInfo {
                 damage: 3.5,
                 knockback_strength: 3.0,
+                knockback_direction: Vec2::new(1.0 * knockbox_x_direction, -0.5).normalize(),
+                hitbox: self.get_rect(Vec2::new(16.0, 5.0), Vec2::new(15.0, 8.0))
+            }),
+            FighterMode::SideSmash => Some(FighterHitInfo {
+                damage: 4.0,
+                knockback_strength: 5.0,
                 knockback_direction: Vec2::new(1.0 * knockbox_x_direction, -0.5).normalize(),
                 hitbox: self.get_rect(Vec2::new(16.0, 5.0), Vec2::new(15.0, 8.0))
             }),

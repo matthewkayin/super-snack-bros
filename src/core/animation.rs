@@ -12,7 +12,8 @@ pub enum Animation {
     CrabFall,
     CrabHurt,
     CrabPunch,
-    CrabPunch2
+    CrabPunch2,
+    CrabSideSmash
 }
 
 struct AnimationFrame {
@@ -190,6 +191,20 @@ pub fn animation_init() {
             AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
             AnimationFrame { h_frame: 5, v_frame: 1, duration: 4  },
             AnimationFrame { h_frame: 6, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 3, v_frame: 1, duration: 4  },
+        ]
+    };
+
+    // Side smash
+    animation_data[Animation::CrabSideSmash as usize] = AnimationData {
+        loops: 1,
+        hit_range: Some((2, 3)),
+        frames: vec![
+            AnimationFrame { h_frame: 7, v_frame: 1, duration: 4  },
+            AnimationFrame { h_frame: 0, v_frame: 2, duration: 4  },
+            AnimationFrame { h_frame: 1, v_frame: 2, duration: 4  },
+            AnimationFrame { h_frame: 2, v_frame: 2, duration: 4  },
             AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
             AnimationFrame { h_frame: 3, v_frame: 1, duration: 4  },
         ]
