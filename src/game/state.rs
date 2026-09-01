@@ -1,4 +1,5 @@
 use crate::game::fighter::*;
+use crate::game::platform::*;
 use crate::core::input::*;
 use crate::core::render::*;
 use crate::game::rect::*;
@@ -18,7 +19,7 @@ const DEBUG_MODE_COUNT: u32 = 3;
 
 pub struct GameState {
     players: [Fighter; INPUT_PLAYER_COUNT],
-    level_platforms: Vec<Rect>,
+    level_platforms: Vec<Platform>,
     parallax_x: f32,
 
     debug_mode: u32
@@ -48,24 +49,36 @@ impl GameState {
 
         let level_platforms = vec![
             // Top
-            Rect {
-                position: Vec2::new(top_platform_x, top_platform_y),
-                size: Vec2::new(side_platform_width, side_platform_height)
+            Platform {
+                rect: Rect {
+                    position: Vec2::new(top_platform_x, top_platform_y),
+                    size: Vec2::new(side_platform_width, side_platform_height)
+                },
+                allows_dropthrough: true,
             },
             // Left
-            Rect {
-                position: Vec2::new(left_platform_x, side_platform_y),
-                size: Vec2::new(side_platform_width, side_platform_height)
+            Platform {
+                rect: Rect {
+                    position: Vec2::new(left_platform_x, side_platform_y),
+                    size: Vec2::new(side_platform_width, side_platform_height)
+                },
+                allows_dropthrough: true,
             },
             // Right
-            Rect {
-                position: Vec2::new(right_platform_x, side_platform_y),
-                size: Vec2::new(side_platform_width, side_platform_height)
+            Platform {
+                rect: Rect {
+                    position: Vec2::new(right_platform_x, side_platform_y),
+                    size: Vec2::new(side_platform_width, side_platform_height)
+                },
+                allows_dropthrough: true,
             },
             // Center
-            Rect {
-                position: Vec2::new(center_platform_x, center_platform_y),
-                size: Vec2::new(center_platform_width, center_platform_height)
+            Platform {
+                rect: Rect {
+                    position: Vec2::new(center_platform_x, center_platform_y),
+                    size: Vec2::new(center_platform_width, center_platform_height)
+                },
+                allows_dropthrough: false
             }
         ];
 
@@ -151,8 +164,8 @@ impl GameState {
         }
 
         // Platforms
-        for collider in self.level_platforms.iter() {
-            GameState::render_platform(&collider);
+        for platform in self.level_platforms.iter() {
+            GameState::render_platform(&platform.rect);
         }
 
         // Player
@@ -165,8 +178,8 @@ impl GameState {
             let rect_color_green = "#00ff00ff";
 
             // Level colliders
-            for collider in self.level_platforms.iter() {
-                render_draw_rect(&rect_color_green, collider.position, collider.size);
+            for platform in self.level_platforms.iter() {
+                render_draw_rect(&rect_color_green, platform.rect.position, platform.rect.size);
             }
 
             // Player pushboxes

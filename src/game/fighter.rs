@@ -1,5 +1,6 @@
 use crate::core::input::*;
 use crate::game::rect::*;
+use crate::game::platform::*;
 use crate::core::animation::*;
 use crate::core::render::*;
 use std::collections::VecDeque;
@@ -18,6 +19,8 @@ const FIGHTER_COYOTE_TIMER_DURATION: u32 = 10;
 
 const FIGHTER_INPUT_TTL: u32 = 8;
 const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
+
+const FIGHTER_PLATFORM_NONE: usize = usize::MAX;
 
 #[derive(Debug, PartialEq, Eq)]
 enum FighterMode {
@@ -70,7 +73,8 @@ pub struct Fighter {
     // Jump
     jumped_this_frame: bool,
     has_double_jump: bool,
-    is_grounded: bool,
+    platform_index: usize,
+    fallthrough_platform_index: usize,
     coyote_timer: u32,
 
     // Hit
@@ -104,7 +108,8 @@ impl Fighter {
 
             jumped_this_frame: false,
             has_double_jump: true,
-            is_grounded: false,
+            platform_index: FIGHTER_PLATFORM_NONE,
+            fallthrough_platform_index: FIGHTER_PLATFORM_NONE,
             coyote_timer: 0,
 
             hitstun_timer: 0,
@@ -113,7 +118,7 @@ impl Fighter {
         }
     }
 
-    pub fn update(&mut self, colliders: &Vec<Rect>) {
+    pub fn update(&mut self, platforms: &Vec<Platform>) {
         if self.animation.name != self.get_expected_animation() {
             self.reset_animation();
         }
@@ -157,7 +162,7 @@ impl Fighter {
                 let di = self.get_directional_input();
 
                 // Update direction
-                if self.is_grounded && di != 0.0 {
+                if di != 0.0 {
                     self.direction = if di > 0.0 {
                         FighterDirection::Right
                     } else {
@@ -166,11 +171,19 @@ impl Fighter {
                 }
 
                 // Turn around on the spot when grounded
-                if self.is_grounded &&
+                if self.is_grounded() &&
                     ((di == 1.0 && self.velocity.x < 0.0) ||
                     (di == -1.0 && self.velocity.x > 0.0))
                 {
                     self.velocity.x = 0.0;
+                }
+
+                if self.is_grounded() &&
+                    input_is_action_just_pressed(self.player, InputAction::Down) &&
+                    platforms[self.platform_index].allows_dropthrough
+                {
+                    self.fallthrough_platform_index = self.platform_index;
+                    self.platform_index = FIGHTER_PLATFORM_NONE;
                 }
             },
             FighterMode::Hitstun => {
@@ -188,14 +201,14 @@ impl Fighter {
 
         // MOVE
 
-        let was_grounded = self.is_grounded;
+        let was_grounded = self.is_grounded();
         self.update_velocity();
-        self.is_grounded = false;
-        self.move_x(colliders);
-        self.move_y(colliders);
+        self.platform_index = FIGHTER_PLATFORM_NONE;
+        self.move_x(platforms);
+        self.move_y(platforms);
 
         // Coyote timer
-        if !self.is_grounded && was_grounded && !self.jumped_this_frame {
+        if !self.is_grounded() && was_grounded && !self.jumped_this_frame {
             self.coyote_timer = FIGHTER_COYOTE_TIMER_DURATION;
         }
         if self.coyote_timer != 0 {
@@ -204,7 +217,7 @@ impl Fighter {
 
         // Reset jumps remaining
         self.jumped_this_frame = false;
-        if self.is_grounded {
+        if self.is_grounded() {
             self.has_double_jump = true;
         }
     }
@@ -253,7 +266,7 @@ impl Fighter {
     }
 
     fn handle_input_punch(&mut self) -> bool {
-        if self.is_grounded {
+        if self.is_grounded() {
             if self.mode == FighterMode::Idle {
                 self.set_attack_mode(FighterMode::Neutral1);
             } else if self.mode == FighterMode::Neutral1 && self.animation.is_on_recovery_frame() {
@@ -276,8 +289,12 @@ impl Fighter {
 
     // JUMP
 
+    fn is_grounded(&self) -> bool {
+        self.platform_index != FIGHTER_PLATFORM_NONE
+    }
+
     fn can_ground_jump(&self) -> bool {
-        self.is_grounded || self.coyote_timer != 0
+        self.is_grounded() || self.coyote_timer != 0
     }
 
     fn jump(&mut self) {
@@ -306,7 +323,7 @@ impl Fighter {
     fn get_expected_animation(&self) -> Animation {
         match self.mode {
             FighterMode::Idle => {
-                if !self.is_grounded {
+                if !self.is_grounded() {
                     return Animation::CrabFall
                 }
 
@@ -336,7 +353,7 @@ impl Fighter {
 
         // Walk acceleration
         if di == 1.0 && self.velocity.x < FIGHTER_WALK_SPEED {
-            let x_acceleration = if self.is_grounded {
+            let x_acceleration = if self.is_grounded() {
                 FIGHTER_WALK_ACCELERATION
             } else {
                 FIGHTER_AIR_ACCELERATION
@@ -356,33 +373,33 @@ impl Fighter {
         }
     }
 
-    fn move_x(&mut self, colliders: &Vec<Rect>) {
+    fn move_x(&mut self, platforms: &Vec<Platform>) {
         if self.velocity.x != 0.0 {
             let old_pushbox = self.get_pushbox();
             self.position.x += self.velocity.x;
             let pushbox = self.get_pushbox();
 
-            for collider in colliders.iter() {
+            for platform in platforms.iter() {
                 // First, check that we are aligned on the y axis
                 let vertically_overlapping = !(
-                    pushbox.position.y + pushbox.size.y <= collider.position.y ||
-                    pushbox.position.y >= collider.position.y + collider.size.y);
+                    pushbox.position.y + pushbox.size.y <= platform.rect.position.y ||
+                    pushbox.position.y >= platform.rect.position.y + platform.rect.size.y);
 
                 if vertically_overlapping && self.velocity.y >= 0.0 {
                     if self.velocity.x > 0.0 &&
-                        old_pushbox.position.x <= collider.position.x &&
-                        pushbox.position.x + pushbox.size.x > collider.position.x
+                        old_pushbox.position.x <= platform.rect.position.x &&
+                        pushbox.position.x + pushbox.size.x > platform.rect.position.x
                     {
-                        self.position.x += collider.position.x - (pushbox.position.x + pushbox.size.x);
+                        self.position.x += platform.rect.position.x - (pushbox.position.x + pushbox.size.x);
                         self.velocity.x = 0.0;
                         break;
                     }
 
                     if self.velocity.x < 0.0 &&
-                        old_pushbox.position.x >= collider.position.x + collider.size.x &&
-                        pushbox.position.x < collider.position.x + collider.size.x
+                        old_pushbox.position.x >= platform.rect.position.x + platform.rect.size.x &&
+                        pushbox.position.x < platform.rect.position.x + platform.rect.size.x
                     {
-                        self.position.x += (collider.position.x + collider.size.x) - pushbox.position.x;
+                        self.position.x += (platform.rect.position.x + platform.rect.size.x) - pushbox.position.x;
                         self.velocity.x = 0.0;
                         break;
                     }
@@ -391,21 +408,33 @@ impl Fighter {
         }
     }
 
-    fn move_y(&mut self, colliders: &Vec<Rect>) {
+    fn move_y(&mut self, platforms: &Vec<Platform>) {
         if self.velocity.y != 0.0 {
             let old_pushbox = self.get_pushbox();
             self.position.y += self.velocity.y;
             let pushbox = self.get_pushbox();
 
-            for collider in colliders.iter() {
-                if pushbox.intersects_horizontally(collider) {
+            for index in 0..platforms.len() {
+                let platform = &platforms[index];
+
+                // If this platform is the fallthrough platform, then don't collide with it
+                if self.fallthrough_platform_index == index {
+                    // But if we're not touching it, then reset the fallthrough platform
+                    if !pushbox.intersects(&platform.rect) {
+                        self.fallthrough_platform_index = FIGHTER_PLATFORM_NONE;
+                    }
+
+                    continue;
+                }
+
+                if pushbox.intersects_horizontally(&platform.rect) {
                     if self.velocity.y > 0.0 &&
-                        old_pushbox.position.y <= collider.position.y &&
-                        pushbox.position.y + pushbox.size.y > collider.position.y
+                        old_pushbox.position.y <= platform.rect.position.y &&
+                        pushbox.position.y + pushbox.size.y > platform.rect.position.y
                     {
-                        self.position.y += collider.position.y - (pushbox.position.y + pushbox.size.y);
+                        self.position.y += platform.rect.position.y - (pushbox.position.y + pushbox.size.y);
                         self.velocity.y = 0.0;
-                        self.is_grounded = true;
+                        self.platform_index = index;
                         break;
                     }
                 }
@@ -416,7 +445,7 @@ impl Fighter {
     // COLLISION RESOLUTION
 
     pub fn handle_pushbox_collision(&mut self, collision: Vec2) {
-        if self.is_grounded {
+        if self.is_grounded() {
             self.position.x += collision.x * 0.5;
         }
     }
