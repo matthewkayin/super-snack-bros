@@ -11,11 +11,10 @@ const FIGHTER_WALK_DECELERATION: f32 = 0.15;
 
 const FIGHTER_GRAVITY: f32 = 0.34;
 const FIGHTER_JUMP_ACCELERATION: f32 = -6.0;
-const FIGHTER_JUMP_SHORT_HOP_ACCELERATION: f32 = -4.0;
+const FIGHTER_AIR_ACCELERATION: f32 = 1.0;
 const FIGHTER_FALL_SPEED: f32 = 2.25;
 
 const FIGHTER_COYOTE_TIMER_DURATION: u32 = 10;
-const FIGHTER_JUMP_SQUAT_DURATION: u32 = 5;
 
 const FIGHTER_INPUT_TTL: u32 = 8;
 const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
@@ -23,7 +22,6 @@ const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
 #[derive(Debug, PartialEq, Eq)]
 enum FighterMode {
     Idle,
-    JumpSquat,
     Hitstun,
     Neutral1,
     Neutral2,
@@ -70,10 +68,10 @@ pub struct Fighter {
     direction: FighterDirection,
 
     // Jump
+    jumped_this_frame: bool,
     has_double_jump: bool,
     is_grounded: bool,
     coyote_timer: u32,
-    jump_timer: u32,
 
     // Hit
     hitstun_timer: u32,
@@ -104,10 +102,10 @@ impl Fighter {
                 InputPlayer::Two => FighterDirection::Left
             },
 
-            has_double_jump: false,
+            jumped_this_frame: false,
+            has_double_jump: true,
             is_grounded: false,
             coyote_timer: 0,
-            jump_timer: 0,
 
             hitstun_timer: 0,
             damage: 0.0,
@@ -147,14 +145,13 @@ impl Fighter {
             if self.handle_input(input.typ) {
                 // If we handled an input, clear the queue
                 // self.input_queue.clear();
-                self.input_queue.drain(0..index);
+                self.input_queue.drain(0..(index + 1));
                 break;
             }
         }
 
         // UPDATE
 
-        let mut jumped_this_frame = false;
         match self.mode {
             FighterMode::Idle => {
                 let di = self.get_directional_input();
@@ -174,16 +171,6 @@ impl Fighter {
                     (di == -1.0 && self.velocity.x > 0.0))
                 {
                     self.velocity.x = 0.0;
-                }
-            },
-            FighterMode::JumpSquat => {
-                // Count jump squat time
-                self.jump_timer -= 1;
-                if self.jump_timer == 0 {
-                    self.mode = FighterMode::Idle;
-                    self.jump_timer = 0;
-                    self.jump();
-                    jumped_this_frame = true;
                 }
             },
             FighterMode::Hitstun => {
@@ -208,7 +195,7 @@ impl Fighter {
         self.move_y(colliders);
 
         // Coyote timer
-        if !self.is_grounded && was_grounded && !jumped_this_frame {
+        if !self.is_grounded && was_grounded && !self.jumped_this_frame {
             self.coyote_timer = FIGHTER_COYOTE_TIMER_DURATION;
         }
         if self.coyote_timer != 0 {
@@ -216,6 +203,7 @@ impl Fighter {
         }
 
         // Reset jumps remaining
+        self.jumped_this_frame = false;
         if self.is_grounded {
             self.has_double_jump = true;
         }
@@ -243,11 +231,14 @@ impl Fighter {
     }
 
     fn handle_input_jump(&mut self) -> bool {
+        if self.mode != FighterMode::Idle {
+            return false;
+        }
+
         if self.can_ground_jump() {
             // Begin jump
-            self.mode = FighterMode::JumpSquat;
-            self.reset_animation();
-            self.jump_timer = FIGHTER_JUMP_SQUAT_DURATION;
+            self.jump();
+            self.jumped_this_frame = true;
             self.coyote_timer = 0;
 
             return true;
@@ -286,16 +277,13 @@ impl Fighter {
     // JUMP
 
     fn can_ground_jump(&self) -> bool {
-        (self.is_grounded || self.coyote_timer != 0) &&
-        self.mode == FighterMode::Idle
+        self.is_grounded || self.coyote_timer != 0
     }
 
     fn jump(&mut self) {
-        self.velocity.y = if self.can_ground_jump() && !input_is_action_pressed(self.player, InputAction::Up) {
-            FIGHTER_JUMP_SHORT_HOP_ACCELERATION
-        } else {
-            FIGHTER_JUMP_ACCELERATION
-        };
+        self.mode = FighterMode::Idle;
+        self.velocity.y = FIGHTER_JUMP_ACCELERATION;
+        self.reset_animation();
     }
 
     fn get_directional_input(&self) -> f32 {
@@ -328,7 +316,6 @@ impl Fighter {
 
                 Animation::CrabIdle
             },
-            FighterMode::JumpSquat => Animation::CrabJump,
             FighterMode::Hitstun => Animation::CrabHurt,
             FighterMode::Neutral1 | FighterMode::Neutral2 => Animation::CrabPunch,
             FighterMode::Neutral3 => Animation::CrabPunch2
@@ -349,7 +336,12 @@ impl Fighter {
 
         // Walk acceleration
         if di == 1.0 && self.velocity.x < FIGHTER_WALK_SPEED {
-            self.velocity.x = (self.velocity.x + FIGHTER_WALK_ACCELERATION).min(FIGHTER_WALK_SPEED);
+            let x_acceleration = if self.is_grounded {
+                FIGHTER_WALK_ACCELERATION
+            } else {
+                FIGHTER_AIR_ACCELERATION
+            };
+            self.velocity.x = (self.velocity.x + x_acceleration).min(FIGHTER_WALK_SPEED);
         } else if di == -1.0 && self.velocity.x > -FIGHTER_WALK_SPEED {
             self.velocity.x = (self.velocity.x - FIGHTER_WALK_ACCELERATION).max(-FIGHTER_WALK_SPEED);
         }
