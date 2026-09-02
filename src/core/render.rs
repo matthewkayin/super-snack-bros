@@ -14,6 +14,7 @@ pub enum Sprite {
     CrabOrange,
     CrabGreen,
     Parallax,
+    Parallax2,
     Tileset,
     HealthFrame
 }
@@ -67,6 +68,11 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
         },
         Sprite::Parallax => SpriteParams {
             path: "res/parallax.png",
+            h_frames: 1,
+            v_frames: 1
+        },
+        Sprite::Parallax2 => SpriteParams {
+            path: "res/parallax2.png",
             h_frames: 1,
             v_frames: 1
         },
@@ -247,8 +253,8 @@ pub fn render_sprite(sprite: Sprite, position: Vec2, h_frame: u32, v_frame: u32,
             (v_frame * sprite_data.frame_height) as f64, // Source Y
             sprite_data.frame_width as f64, // Source Width
             sprite_data.frame_height as f64, // Source Height
-            position_x,
-            position_y,
+            position_x.floor(),
+            position_y.floor(),
             sprite_data.frame_width as f64, // Dest Width
             sprite_data.frame_height as f64) // Dest Height
         .unwrap();

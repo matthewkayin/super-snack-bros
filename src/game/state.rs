@@ -7,6 +7,7 @@ use crate::constants::*;
 use glam::Vec2;
 
 const PARALLAX_SPEED: f32 = 0.2;
+const PARALLAX2_SPEED: f32 = 0.4;
 const PARALLAX_WIDTH: f32 = 256.0;
 
 const TILE_SIZE_U32: u32 = 16;
@@ -17,10 +18,18 @@ const DEBUG_MODE_PUSHBOXES: u32 = 1;
 const DEBUG_MODE_HITBOXES: u32 = 2;
 const DEBUG_MODE_COUNT: u32 = 3;
 
+struct Decoration {
+    position: Vec2,
+    h_frame: u32,
+    v_frame: u32
+}
+
 pub struct GameState {
     players: [Fighter; INPUT_PLAYER_COUNT],
     level_platforms: Vec<Platform>,
+    level_decorations: Vec<Decoration>,
     parallax_x: f32,
+    parallax2_x: f32,
 
     debug_mode: u32
 }
@@ -82,6 +91,44 @@ impl GameState {
             }
         ];
 
+        // Decorations
+        let mut level_decorations = Vec::new();
+        level_decorations.push(Decoration {
+            position: Vec2::new(
+                center_platform_x + (TILE_SIZE_F32 * 1.0),
+                center_platform_y - (TILE_SIZE_F32)),
+            h_frame: 5,
+            v_frame: 0
+        });
+        level_decorations.push(Decoration {
+            position: Vec2::new(
+                center_platform_x + (TILE_SIZE_F32 * 4.5),
+                center_platform_y - (TILE_SIZE_F32)),
+            h_frame: 9,
+            v_frame: 0
+        });
+        level_decorations.push(Decoration {
+            position: Vec2::new(
+                center_platform_x + (TILE_SIZE_F32 * 7.0),
+                center_platform_y - (TILE_SIZE_F32)),
+            h_frame: 5,
+            v_frame: 0
+        });
+        level_decorations.push(Decoration {
+            position: Vec2::new(
+                center_platform_x + (TILE_SIZE_F32 * 10.5),
+                center_platform_y - (TILE_SIZE_F32)),
+            h_frame: 7,
+            v_frame: 0
+        });
+        level_decorations.push(Decoration {
+            position: Vec2::new(
+                center_platform_x + (TILE_SIZE_F32 * 14.0),
+                center_platform_y - (TILE_SIZE_F32)),
+            h_frame: 4,
+            v_frame: 0
+        });
+
         // Determine player positions
         let mut players = [Fighter::new(InputPlayer::One), Fighter::new(InputPlayer::Two)];
         for player_index in 0..INPUT_PLAYER_COUNT {
@@ -101,7 +148,9 @@ impl GameState {
         GameState {
             players,
             level_platforms,
+            level_decorations,
             parallax_x: 0.0,
+            parallax2_x: 0.0,
 
             debug_mode: DEBUG_MODE_NONE
         }
@@ -138,12 +187,17 @@ impl GameState {
                 if !intersects_opp_hitbox && hit_info.hitbox.intersects(&player_hurtboxes[opp_index]) {
                     self.players[opp_index].handle_hit(hit_info.damage, hit_info.knockback_strength, hit_info.knockback_direction);
                     self.players[index].has_hit = false;
+
+                    let hitlag = 6 + (hit_info.damage * 0.65).floor() as u32;
+                    self.players[index].hitlag_timer = hitlag;
+                    self.players[opp_index].hitlag_timer = hitlag;
                 }
             }
         }
 
         // Update parallax
         self.parallax_x = (self.parallax_x + PARALLAX_SPEED) % PARALLAX_WIDTH;
+        self.parallax2_x = (self.parallax2_x + PARALLAX2_SPEED) % PARALLAX_WIDTH;
 
         // Toggle debug modes
         if input_is_action_just_pressed(InputPlayer::One, InputAction::Start) {
@@ -162,10 +216,20 @@ impl GameState {
             render_sprite(Sprite::Parallax, Vec2::new(parallax_x, SCREEN_HEIGHT - PARALLAX_WIDTH), 0, 0, false);
             parallax_x += PARALLAX_WIDTH;
         }
+        parallax_x = (-self.parallax2_x).floor();
+        while parallax_x < SCREEN_WIDTH {
+            render_sprite(Sprite::Parallax2, Vec2::new(parallax_x, SCREEN_HEIGHT - PARALLAX_WIDTH), 0, 0, false);
+            parallax_x += PARALLAX_WIDTH;
+        }
 
         // Platforms
         for platform in self.level_platforms.iter() {
             GameState::render_platform(&platform.rect);
+        }
+
+        // Decorations
+        for decoration in self.level_decorations.iter() {
+            render_sprite(Sprite::Tileset, decoration.position, decoration.h_frame, decoration.v_frame, false);
         }
 
         // Player

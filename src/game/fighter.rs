@@ -83,6 +83,7 @@ pub struct Fighter {
 
     // Hit
     hitstun_timer: u32,
+    pub hitlag_timer: u32,
     pub damage: f32,
     pub has_hit: bool,
 }
@@ -117,17 +118,13 @@ impl Fighter {
             coyote_timer: 0,
 
             hitstun_timer: 0,
+            hitlag_timer: 0,
             damage: 0.0,
             has_hit: false
         }
     }
 
     pub fn update(&mut self, platforms: &Vec<Platform>) {
-        if self.animation.name != self.get_expected_animation() {
-            self.reset_animation();
-        }
-        self.animation.update();
-
         // CHECK INPUTS
         if input_is_action_just_pressed(self.player, InputAction::Up) {
             self.queue_input(FighterInputType::Jump);
@@ -138,6 +135,11 @@ impl Fighter {
             } else {
                 self.queue_input(FighterInputType::SideSmash);
             }
+        }
+
+        if self.hitlag_timer > 0 {
+            self.hitlag_timer -= 1;
+            return;
         }
 
         // INPUT QUEUE
@@ -156,12 +158,18 @@ impl Fighter {
         for index in 0..self.input_queue.len() {
             let input = self.input_queue.get(index).unwrap();
             if self.handle_input(input.typ) {
-                // If we handled an input, clear the queue
-                // self.input_queue.clear();
+                // If we handled an input, drain the queue
                 self.input_queue.drain(0..(index + 1));
                 break;
             }
         }
+
+        // UPDATE ANIMATION
+
+        if self.animation.name != self.get_expected_animation() {
+            self.reset_animation();
+        }
+        self.animation.update();
 
         // UPDATE
 
