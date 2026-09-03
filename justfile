@@ -2,7 +2,7 @@
 dev:
     #!/usr/bin/env bash
     set -euo pipefail
-    PORT=8080
+    PORT=8081
     trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
     trunk serve --port "$PORT" &
     npx rcade@latest dev "http://localhost:$PORT" &
