@@ -13,7 +13,8 @@ pub enum Animation {
     CrabHurt,
     CrabPunch,
     CrabPunch2,
-    CrabSideSmash
+    CrabSideSmash,
+    DeathExplosion
 }
 
 struct AnimationFrame {
@@ -207,6 +208,24 @@ pub fn animation_init() {
             AnimationFrame { h_frame: 2, v_frame: 2, duration: 4  },
             AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
             AnimationFrame { h_frame: 3, v_frame: 1, duration: 4  },
+        ]
+    };
+
+    // Explosion
+    animation_data[Animation::DeathExplosion as usize] = AnimationData {
+        loops: 1,
+        hit_range: None,
+        frames: vec![
+            AnimationFrame { h_frame: 0, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 1, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 2, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 3, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 4, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 5, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 6, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 7, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 8, v_frame: 0, duration: 3 },
+            AnimationFrame { h_frame: 9, v_frame: 0, duration: 3 },
         ]
     };
 

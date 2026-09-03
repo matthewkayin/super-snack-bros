@@ -347,5 +347,12 @@ impl GameState {
         let damage_frag_part_str = format!(".{}%", damage_frac_part as u32);
         let text_position = text_position + Vec2::new(text_width, 7.0);
         render_bitmap_text(&damage_frag_part_str, BitmapFont::Numbers16, font_color, text_position);
+
+        // Render stocks
+        let stocks_frame_size = render_get_sprite_frame_size(Sprite::CrabStocks);
+        let stocks_position = frame_position - Vec2::new(stocks_frame_size.x + 1.0, 1.0);
+        for index in 0..self.players[player_index].stocks {
+            render_sprite(Sprite::CrabStocks, stocks_position + Vec2::new(0.0, (stocks_frame_size.y + 1.0) * (index as f32)), player_index as u32, 0, false);
+        }
     }
 }

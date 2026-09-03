@@ -1,3 +1,5 @@
+use crate::constants::SCREEN_HEIGHT;
+use crate::constants::SCREEN_WIDTH;
 use crate::core::input::*;
 use crate::game::rect::*;
 use crate::game::platform::*;
@@ -22,6 +24,7 @@ const FIGHTER_COYOTE_TIMER_DURATION: u32 = 10;
 const FIGHTER_INPUT_TTL: u32 = 8;
 const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
 
+const FIGHTER_DEATH_MARGIN: f32 = 15.0;
 const FIGHTER_PLATFORM_NONE: usize = usize::MAX;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -31,7 +34,9 @@ enum FighterMode {
     Neutral1,
     Neutral2,
     Neutral3,
-    SideSmash
+    SideSmash,
+    DeathAnimation,
+    Death
 }
 
 #[repr(i8)]
@@ -86,6 +91,7 @@ pub struct Fighter {
     pub hitlag_timer: u32,
     pub damage: f32,
     pub has_hit: bool,
+    pub stocks: u32,
 }
 
 impl Fighter {
@@ -120,7 +126,8 @@ impl Fighter {
             hitstun_timer: 0,
             hitlag_timer: 0,
             damage: 0.0,
-            has_hit: false
+            has_hit: false,
+            stocks: 3
         }
     }
 
@@ -215,7 +222,14 @@ impl Fighter {
                 if self.animation.is_finished() {
                     self.mode = FighterMode::Idle;
                 }
+            },
+            FighterMode::DeathAnimation => {
+                if self.animation.is_finished() {
+                    self.stocks -= 1;
+                    self.mode = FighterMode::Death;
+                }
             }
+            FighterMode::Death => ()
         }
 
         // MOVE
@@ -238,6 +252,28 @@ impl Fighter {
         self.jumped_this_frame = false;
         if self.is_grounded() {
             self.has_double_jump = true;
+        }
+
+        // Check for death
+        if self.mode != FighterMode::DeathAnimation && self.mode != FighterMode::Death {
+            let center_position = self.position + (self.sprite_frame_size / 2.0);
+            if center_position.x < -FIGHTER_DEATH_MARGIN || center_position.y < -FIGHTER_DEATH_MARGIN ||
+                center_position.x > SCREEN_WIDTH + FIGHTER_DEATH_MARGIN || center_position.y > SCREEN_HEIGHT + FIGHTER_DEATH_MARGIN
+            {
+                if center_position.x < 0.0 {
+                    self.position.x = -self.sprite_frame_size.x / 2.0;
+                } else if center_position.x > SCREEN_WIDTH {
+                    self.position.x = SCREEN_WIDTH - (self.sprite_frame_size.x / 2.0);
+                }
+                if center_position.y < 0.0 {
+                    self.position.y = -self.sprite_frame_size.y / 2.0;
+                } else if center_position.y > SCREEN_HEIGHT {
+                    self.position.y = SCREEN_HEIGHT - (self.sprite_frame_size.y / 2.0);
+                }
+
+                self.mode = FighterMode::DeathAnimation;
+                self.reset_animation();
+            }
         }
     }
 
@@ -365,13 +401,20 @@ impl Fighter {
             FighterMode::Hitstun => Animation::CrabHurt,
             FighterMode::Neutral1 | FighterMode::Neutral2 => Animation::CrabPunch,
             FighterMode::Neutral3 => Animation::CrabPunch2,
-            FighterMode::SideSmash => Animation::CrabSideSmash
+            FighterMode::SideSmash => Animation::CrabSideSmash,
+            FighterMode::DeathAnimation => Animation::DeathExplosion,
+            FighterMode::Death => Animation::CrabIdle
         }
     }
 
     // MOVE
 
     fn update_velocity(&mut self) {
+        if self.mode == FighterMode::DeathAnimation || self.mode == FighterMode::Death {
+            self.velocity = Vec2::ZERO;
+            return;
+        }
+
         let di = self.get_directional_input();
 
         // Deceleration
@@ -549,6 +592,17 @@ impl Fighter {
     }
 
     pub fn render(&self) {
-        render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, self.direction == FighterDirection::Left);
+        match self.mode {
+            FighterMode::DeathAnimation => {
+                let frame_size = render_get_sprite_frame_size(Sprite::DeathExplosion);
+                let v_frame = if self.player == InputPlayer::One { 0 } else { 1 };
+                render_sprite(Sprite::DeathExplosion, self.position + (self.sprite_frame_size / 2.0) - (frame_size / 2.0), self.animation.h_frame, v_frame, false);
+            },
+            FighterMode::Death => (),
+            _ => {
+                let flip_h = self.direction == FighterDirection::Left && self.mode != FighterMode::DeathAnimation;
+                render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, flip_h);
+            }
+        }
     }
 }

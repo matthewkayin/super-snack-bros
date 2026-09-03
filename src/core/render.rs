@@ -16,7 +16,9 @@ pub enum Sprite {
     Parallax,
     Parallax2,
     Tileset,
-    HealthFrame
+    HealthFrame,
+    DeathExplosion,
+    CrabStocks,
 }
 
 struct SpriteParams {
@@ -83,6 +85,16 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
         },
         Sprite::HealthFrame => SpriteParams {
             path: "res/health_frame.png",
+            h_frames: 2,
+            v_frames: 1
+        },
+        Sprite::DeathExplosion => SpriteParams {
+            path: "res/death_explosion.png",
+            h_frames: 10,
+            v_frames: 2
+        },
+        Sprite::CrabStocks => SpriteParams {
+            path: "res/crab_stocks.png",
             h_frames: 2,
             v_frames: 1
         }
