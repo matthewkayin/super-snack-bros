@@ -21,7 +21,7 @@ const FIGHTER_FALL_SPEED: f32 = 2.25;
 
 const FIGHTER_COYOTE_TIMER_DURATION: u32 = 10;
 
-const FIGHTER_INPUT_TTL: u32 = 8;
+const FIGHTER_INPUT_TTL: u32 = 10;
 const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
 
 const FIGHTER_DEATH_MARGIN: f32 = 15.0;
@@ -48,7 +48,7 @@ enum FighterDirection {
     Left = -1
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum FighterInputType {
     Jump,
     Neutral,
@@ -143,6 +143,7 @@ impl Fighter {
             self.queue_input(FighterInputType::Jump);
         }
         if input_is_action_just_pressed(self.player, InputAction::A) {
+            web_sys::console::log_1(&"Pressed A".into());
             if self.get_directional_input() == 0.0 {
                 self.queue_input(FighterInputType::Neutral);
             } else {
@@ -236,6 +237,7 @@ impl Fighter {
             FighterMode::DeathAnimation => {
                 if self.animation.is_finished() {
                     self.stocks -= 1;
+                    self.damage = 0.0;
                     self.mode = FighterMode::Death;
                     if self.stocks > 0 {
                         self.respawn_timer = FIGHTER_RESPAWN_DELAY;
@@ -345,13 +347,18 @@ impl Fighter {
         if self.is_grounded() {
             if self.mode == FighterMode::Idle {
                 self.set_attack_mode(FighterMode::Neutral1);
-            } else if self.mode == FighterMode::Neutral1 && self.animation.is_on_recovery_frame() {
-                self.set_attack_mode(FighterMode::Neutral2);
-            } else if self.mode == FighterMode::Neutral2 && self.animation.is_on_recovery_frame() {
-                self.set_attack_mode(FighterMode::Neutral3);
+                return true;
             }
 
-            return true;
+            if self.mode == FighterMode::Neutral1 && self.animation.is_on_recovery_frame() {
+                self.set_attack_mode(FighterMode::Neutral2);
+                return true;
+            }
+
+            if self.mode == FighterMode::Neutral2 && self.animation.is_on_recovery_frame() {
+                self.set_attack_mode(FighterMode::Neutral3);
+                return true
+            }
         }
 
         false

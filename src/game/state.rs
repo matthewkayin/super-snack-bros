@@ -191,7 +191,7 @@ impl GameState {
                     self.players[opp_index].handle_hit(hit_info.damage, hit_info.knockback_strength, hit_info.knockback_direction);
                     self.players[index].has_hit = false;
 
-                    let hitlag = 6 + (hit_info.damage * 0.65).floor() as u32;
+                    let hitlag = 5 + (hit_info.damage * 0.65).floor() as u32;
                     self.players[index].hitlag_timer = hitlag;
                     self.players[opp_index].hitlag_timer = hitlag;
                 }
