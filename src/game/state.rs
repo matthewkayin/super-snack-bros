@@ -172,7 +172,7 @@ impl GameState {
             self.players.iter()
             .map(|player| player.get_hit_info())
             .collect::<Vec<_>>().try_into().unwrap();
-        let player_hurtboxes: [Rect; INPUT_PLAYER_COUNT] =
+        let player_hurtbox_opts: [Option<Rect>; INPUT_PLAYER_COUNT] =
             self.players.iter()
             .map(|player| player.get_hurtbox())
             .collect::<Vec<_>>().try_into().unwrap();
@@ -184,7 +184,10 @@ impl GameState {
                     Some(opp_hit_info) => hit_info.hitbox.intersects(&opp_hit_info.hitbox),
                     None => false
                 };
-                if !intersects_opp_hitbox && hit_info.hitbox.intersects(&player_hurtboxes[opp_index]) {
+                if !intersects_opp_hitbox &&
+                    let Some(opp_hurtbox) = &player_hurtbox_opts[opp_index] &&
+                    hit_info.hitbox.intersects(opp_hurtbox)
+                {
                     self.players[opp_index].handle_hit(hit_info.damage, hit_info.knockback_strength, hit_info.knockback_direction);
                     self.players[index].has_hit = false;
 
@@ -260,16 +263,17 @@ impl GameState {
 
             // Player hurtboxes
             for player in self.players.iter() {
-                let hurtbox = player.get_hurtbox();
-                render_draw_rect(&rect_color_blue, hurtbox.position, hurtbox.size);
+                let hurtbox_opt = player.get_hurtbox();
+                if let Some(hurtbox) = hurtbox_opt {
+                    render_draw_rect(&rect_color_blue, hurtbox.position, hurtbox.size);
+                }
             }
 
             // Player hitboxes
             for player in self.players.iter() {
                 let hit_info_opt = player.get_hit_info();
-                match hit_info_opt {
-                    Some(hit_info) => render_draw_rect(&rect_color_red, hit_info.hitbox.position, hit_info.hitbox.size),
-                    None => ()
+                if let Some(hit_info) = hit_info_opt {
+                    render_draw_rect(&rect_color_red, hit_info.hitbox.position, hit_info.hitbox.size);
                 }
             }
         }

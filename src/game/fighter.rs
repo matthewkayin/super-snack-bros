@@ -25,6 +25,8 @@ const FIGHTER_INPUT_TTL: u32 = 8;
 const FIGHTER_INPUT_QUEUE_MAX_SIZE: usize = 4;
 
 const FIGHTER_DEATH_MARGIN: f32 = 15.0;
+const FIGHTER_RESPAWN_DELAY: u32 = 120;
+const FIGHTER_RESPAWN_IFRAMES: u32 = 180;
 const FIGHTER_PLATFORM_NONE: usize = usize::MAX;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -92,6 +94,8 @@ pub struct Fighter {
     pub damage: f32,
     pub has_hit: bool,
     pub stocks: u32,
+    respawn_timer: u32,
+    iframes: u32
 }
 
 impl Fighter {
@@ -127,7 +131,9 @@ impl Fighter {
             hitlag_timer: 0,
             damage: 0.0,
             has_hit: false,
-            stocks: 3
+            stocks: 3,
+            respawn_timer: 0,
+            iframes: 0
         }
     }
 
@@ -180,6 +186,10 @@ impl Fighter {
 
         // UPDATE
 
+        if self.iframes > 0 {
+            self.iframes -= 1;
+        }
+
         match self.mode {
             FighterMode::Idle => {
                 let di = self.get_directional_input();
@@ -227,9 +237,19 @@ impl Fighter {
                 if self.animation.is_finished() {
                     self.stocks -= 1;
                     self.mode = FighterMode::Death;
+                    if self.stocks > 0 {
+                        self.respawn_timer = FIGHTER_RESPAWN_DELAY;
+                    }
                 }
             }
-            FighterMode::Death => ()
+            FighterMode::Death => {
+                if self.respawn_timer > 0 {
+                    self.respawn_timer -= 1;
+                    if self.respawn_timer == 0 && self.stocks > 0 {
+                        self.respawn();
+                    }
+                }
+            }
         }
 
         // MOVE
@@ -544,8 +564,11 @@ impl Fighter {
     }
 
     // Receives damage
-    pub fn get_hurtbox(&self) -> Rect {
-        self.get_rect(Vec2::new(9.0, 5.0), Vec2::new(14.0, 11.0))
+    pub fn get_hurtbox(&self) -> Option<Rect> {
+        if self.iframes > 0 {
+            return None;
+        }
+        Some(self.get_rect(Vec2::new(9.0, 5.0), Vec2::new(14.0, 11.0)))
     }
 
     // Deals damage
@@ -591,6 +614,16 @@ impl Fighter {
         self.hitstun_timer = 5;
     }
 
+    // RESPAWN
+
+    fn respawn(&mut self) {
+        self.position = Vec2::new(
+            (SCREEN_WIDTH / 2.0) - (self.sprite_frame_size.x / 2.0),
+            SCREEN_HEIGHT - (16.0 * 10.0) - self.sprite_frame_size.y);
+        self.iframes = FIGHTER_RESPAWN_IFRAMES;
+        self.mode = FighterMode::Idle;
+    }
+
     pub fn render(&self) {
         match self.mode {
             FighterMode::DeathAnimation => {
@@ -600,6 +633,9 @@ impl Fighter {
             },
             FighterMode::Death => (),
             _ => {
+                if self.iframes != 0 && self.iframes % 32 < 16 {
+                    return;
+                }
                 let flip_h = self.direction == FighterDirection::Left && self.mode != FighterMode::DeathAnimation;
                 render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, flip_h);
             }
