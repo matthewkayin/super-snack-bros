@@ -29,10 +29,18 @@ const FIGHTER_RESPAWN_DELAY: u32 = 120;
 const FIGHTER_RESPAWN_IFRAMES: u32 = 180;
 const FIGHTER_PLATFORM_NONE: usize = usize::MAX;
 
+const FIGHTER_BUBBLE_OFFSET: Vec2 = Vec2::new(8.0, 0.0);
+const FIGHTER_SHIELD_MAX_HEALTH: f32 = 25.0;
+const FIGHTER_SHIELD_REGEN: f32 = 0.2;
+const FIGHTER_SHIELD_DRAIN: f32 = 0.05;
+const FIGHTER_SHIELD_RED_DURATION: u32 = 8;
+const FIGHTER_SHIELD_POP_DURATION: u32 = 8;
+
 #[derive(Debug, PartialEq, Eq)]
 enum FighterMode {
     Idle,
     Hitstun,
+    Block,
     Neutral1,
     Neutral2,
     Neutral3,
@@ -51,8 +59,10 @@ enum FighterDirection {
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum FighterInputType {
     Jump,
+    Block,
+    BlockRelease,
     Neutral,
-    SideSmash
+    SideSmash,
 }
 
 struct FighterInput {
@@ -92,6 +102,9 @@ pub struct Fighter {
     hitstun_timer: u32,
     pub hitlag_timer: u32,
     pub damage: f32,
+    pub shield_health: f32,
+    pub shield_red_timer: u32,
+    pub shield_pop_timer: u32,
     pub has_hit: bool,
     pub stocks: u32,
     respawn_timer: u32,
@@ -130,6 +143,9 @@ impl Fighter {
             hitstun_timer: 0,
             hitlag_timer: 0,
             damage: 0.0,
+            shield_health: FIGHTER_SHIELD_MAX_HEALTH,
+            shield_red_timer: 0,
+            shield_pop_timer: 0,
             has_hit: false,
             stocks: 3,
             respawn_timer: 0,
@@ -143,12 +159,25 @@ impl Fighter {
             self.queue_input(FighterInputType::Jump);
         }
         if input_is_action_just_pressed(self.player, InputAction::A) {
-            web_sys::console::log_1(&"Pressed A".into());
             if self.get_directional_input() == 0.0 {
                 self.queue_input(FighterInputType::Neutral);
             } else {
                 self.queue_input(FighterInputType::SideSmash);
             }
+        }
+        if input_is_action_just_pressed(self.player, InputAction::B) {
+            self.queue_input(FighterInputType::Block);
+        }
+        if input_is_action_just_released(self.player, InputAction::B) {
+            self.queue_input(FighterInputType::BlockRelease);
+        }
+
+        if self.shield_red_timer > 0 {
+            self.shield_red_timer -= 1;
+        }
+
+        if self.shield_pop_timer > 0 {
+            self.shield_pop_timer -= 1;
         }
 
         if self.hitlag_timer > 0 {
@@ -191,6 +220,10 @@ impl Fighter {
             self.iframes -= 1;
         }
 
+        if self.mode != FighterMode::Block {
+            self.shield_health = (self.shield_health + FIGHTER_SHIELD_REGEN).min(FIGHTER_SHIELD_MAX_HEALTH);
+        }
+
         match self.mode {
             FighterMode::Idle => {
                 let di = self.get_directional_input();
@@ -224,6 +257,12 @@ impl Fighter {
                 self.hitstun_timer -= 1;
                 if self.hitstun_timer == 0 {
                     self.mode = FighterMode::Idle
+                }
+            },
+            FighterMode::Block => {
+                self.shield_health = (self.shield_health - FIGHTER_SHIELD_DRAIN).max(0.0);
+                if self.shield_health == 0.0 {
+                    self.mode = FighterMode::Idle;
                 }
             },
             FighterMode::Neutral1 |
@@ -316,8 +355,10 @@ impl Fighter {
     fn handle_input(&mut self, input_type: FighterInputType) -> bool {
         match input_type {
             FighterInputType::Jump => self.handle_input_jump(),
+            FighterInputType::Block => self.handle_input_block(),
+            FighterInputType::BlockRelease => self.handle_input_block_release(),
             FighterInputType::Neutral => self.handle_input_neutral(),
-            FighterInputType::SideSmash => self.handle_input_side_smash()
+            FighterInputType::SideSmash => self.handle_input_side_smash(),
         }
     }
 
@@ -337,6 +378,24 @@ impl Fighter {
             self.jump();
             self.has_double_jump = false;
 
+            return true;
+        }
+
+        false
+    }
+
+    fn handle_input_block(&mut self) -> bool {
+        if self.mode == FighterMode::Idle && self.is_grounded() && self.shield_health > 0.0 {
+            self.mode = FighterMode::Block;
+            return true;
+        }
+
+        false
+    }
+
+    fn handle_input_block_release(&mut self) -> bool {
+        if self.mode == FighterMode::Block {
+            self.mode = FighterMode::Idle;
             return true;
         }
 
@@ -426,6 +485,7 @@ impl Fighter {
                 Animation::CrabIdle
             },
             FighterMode::Hitstun => Animation::CrabHurt,
+            FighterMode::Block => Animation::CrabBlock,
             FighterMode::Neutral1 | FighterMode::Neutral2 => Animation::CrabPunch,
             FighterMode::Neutral3 => Animation::CrabPunch2,
             FighterMode::SideSmash => Animation::CrabSideSmash,
@@ -614,8 +674,22 @@ impl Fighter {
     // ON HIT
 
     pub fn handle_hit(&mut self, damage: f32, knockback_strength: f32, knockback_direction: Vec2) {
+        let mut pop_multiplier = 1.0;
+
+        if self.mode == FighterMode::Block {
+            self.shield_health = (self.shield_health - damage).max(0.0);
+            self.shield_red_timer = FIGHTER_SHIELD_RED_DURATION;
+            if self.shield_health > damage {
+                return;
+            }
+
+            self.mode = FighterMode::Idle;
+            self.shield_pop_timer = FIGHTER_SHIELD_POP_DURATION;
+            pop_multiplier = 10.0;
+        }
+
         self.damage += damage;
-        let knockback_strength = 0.2 * (knockback_strength + ((self.damage / 10.0) + ((self.damage * damage) / 20.0)));
+        let knockback_strength = 0.2 * (knockback_strength + ((self.damage / 10.0) + ((self.damage * damage) / 20.0))) * pop_multiplier;
         self.velocity = knockback_strength * knockback_direction;
         self.mode = FighterMode::Hitstun;
         self.hitstun_timer = 5;
@@ -645,6 +719,19 @@ impl Fighter {
                 }
                 let flip_h = self.direction == FighterDirection::Left && self.mode != FighterMode::DeathAnimation;
                 render_sprite(self.sprite, self.position, self.animation.h_frame, self.animation.v_frame, flip_h);
+
+                if self.mode == FighterMode::Block {
+                    let frame_count = render_get_sprite_frame_count(Sprite::ShieldBubble);
+                    let shield_percent = 1.0 - (self.shield_health / FIGHTER_SHIELD_MAX_HEALTH);
+                    let shield_h_frame = (shield_percent * (frame_count.0 as f32)) as u32;
+                    let shield_v_frame = if self.shield_red_timer > 0 { 1 } else { 0 };
+                    render_sprite(Sprite::ShieldBubble, self.position + FIGHTER_BUBBLE_OFFSET, shield_h_frame, shield_v_frame, false);
+                } else if self.shield_pop_timer > 0 {
+                    let shield_pop_h_frames = 2;
+                    let shield_pop_frame_duration = FIGHTER_SHIELD_POP_DURATION / shield_pop_h_frames;
+                    let shield_pop_h_frame = (FIGHTER_SHIELD_POP_DURATION - self.shield_pop_timer) / shield_pop_frame_duration;
+                    render_sprite(Sprite::ShieldBubble, self.position + FIGHTER_BUBBLE_OFFSET, shield_pop_h_frame, 2, false);
+                }
             }
         }
     }

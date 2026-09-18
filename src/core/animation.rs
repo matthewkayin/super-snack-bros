@@ -14,6 +14,7 @@ pub enum Animation {
     CrabPunch,
     CrabPunch2,
     CrabSideSmash,
+    CrabBlock,
     DeathExplosion
 }
 
@@ -208,6 +209,14 @@ pub fn animation_init() {
             AnimationFrame { h_frame: 2, v_frame: 2, duration: 4  },
             AnimationFrame { h_frame: 4, v_frame: 1, duration: 4  },
             AnimationFrame { h_frame: 3, v_frame: 1, duration: 4  },
+        ]
+    };
+
+    animation_data[Animation::CrabBlock as usize] = AnimationData {
+        loops: ANIMATION_LOOPS_INDEFINITELY,
+        hit_range: None,
+        frames: vec![
+            AnimationFrame { h_frame: 3, v_frame: 2, duration: 8 }
         ]
     };
 

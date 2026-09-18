@@ -19,6 +19,7 @@ pub enum Sprite {
     HealthFrame,
     DeathExplosion,
     CrabStocks,
+    ShieldBubble
 }
 
 struct SpriteParams {
@@ -97,6 +98,11 @@ fn render_get_sprite_params(sprite: Sprite) -> SpriteParams {
             path: "res/crab_stocks.png",
             h_frames: 2,
             v_frames: 1
+        },
+        Sprite::ShieldBubble => SpriteParams {
+            path: "res/bubble.png",
+            h_frames: 3,
+            v_frames: 3
         }
     }
 }
@@ -206,6 +212,11 @@ pub fn render_get_sprite_frame_size(sprite: Sprite) -> Vec2 {
         let sprite_data: &SpriteData = &renderer.sprite_data[sprite as usize];
         Vec2::new(sprite_data.frame_width as f32, sprite_data.frame_height as f32)
     })
+}
+
+pub fn render_get_sprite_frame_count(sprite: Sprite) -> (u32, u32) {
+    let params = render_get_sprite_params(sprite);
+    return (params.h_frames, params.v_frames);
 }
 
 pub fn render_clear() {
