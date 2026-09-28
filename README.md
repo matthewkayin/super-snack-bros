@@ -1,67 +1,38 @@
-# Super Snack Bros
+# Super Splash Bros
 
-Fight your friends to get snacks from the snacktopus.
+![Gameplay GIF](./img/crab.gif)
 
-## About RCade
+Super Splash Bros is a 2D fighting game for the [RCade](https://rcade.recurse.com), a custom arcade cabinet built at the Recurse Center.
 
-This game is built for [RCade](https://rcade.recurse.com), a custom arcade cabinet at The Recurse Center. Learn more about the project at [github.com/fcjr/RCade](https://github.com/fcjr/RCade).
+I built this project as a way to learn Rust. Since the RCade cabinet is an Electron app, the project builds to Web Assembly in order to target the RCade.
 
 ## Prerequisites
 
 - [Rust](https://rustup.rs/)
 - [Trunk](https://trunkrs.dev/) - `cargo install trunk`
 - wasm32 target - `rustup target add wasm32-unknown-unknown`
+- NPM
+- [Just](https://github.com/casey/just) - Optional, but allows you to run the dev server and emulator simultaneously with one command.
 
 ## Getting Started
 
-Start the development server:
-
 ```bash
-trunk serve
+just dev
 ```
 
-This compiles the Rust code to WebAssembly and serves it with hot reloading.
+This starts the development server and also the RCade cabinet.
 
 ## Building
 
 ```bash
-trunk build --release
+just build
 ```
 
 Output goes to `dist/` and is ready for deployment.
 
-## Project Structure
-
-```
-├── src/
-│   └── lib.rs        # Game entry point
-├── index.html        # HTML entry
-└── Cargo.toml        # Rust dependencies
-```
-
-## WebAssembly Bindings
-
-This template uses `wasm-bindgen` and `web-sys` for DOM interaction:
-
-```rust
-use wasm_bindgen::prelude::*;
-use web_sys::window;
-
-#[wasm_bindgen(start)]
-pub fn main() {
-    let document = window().unwrap().document().unwrap();
-    let body = document.body().unwrap();
-    body.set_inner_html("<h1>Hello!</h1>");
-}
-```
-
-## Arcade Controls
-
-### Development Keyboard Controls
+## Development Keyboard Controls
 
 When developing locally, keyboard inputs are mapped to arcade controls:
-
-**Classic Controls (`@rcade/plugin-input-classic`)**
 
 | Player   | Action           | Key |
 |----------|------------------|-----|
@@ -80,39 +51,32 @@ When developing locally, keyboard inputs are mapped to arcade controls:
 | System   | One Player Start | 1   |
 | System   | Two Player Start | 2   |
 
-**Spinner Controls (`@rcade/plugin-input-spinners`)**
+## Fighter Architecture
 
-| Player   | Action        | Key |
-|----------|---------------|-----|
-| Player 1 | Spinner Left  | C   |
-| Player 1 | Spinner Right | V   |
-| Player 2 | Spinner Left  | .   |
-| Player 2 | Spinner Right | /   |
+<img src="./img/combo-state-machine.png" width="45%" align="center">
 
-Spinners repeat at ~60Hz while held.
+Character behavior in this game is driven by a state machine. It is through this state machine that fighters are able to perform a combo. 
 
-To add spinner support, add to your `Cargo.toml`:
-```toml
-rcade-plugin-input-spinners = "0.1.0"
-```
+When a punch input is given, the game transitions the fighter from the `Idle` state to the `Punch 1` state. From `Punch 1`, the fighter transitions into `Punch 1 Recovery`. 
 
-## Deployment
+At this point, there is a branch in the state machine: If the player does not press any button, `Punch 1 Recovery` will end and the fighter will return to `Idle`. But if the player presses the A button, the fighter will transition into `Punch 2`. This then repeats and allows the fighter to perform a three punch combo.
 
-First, create a new repository on GitHub:
+### Input Queue
 
-1. Go to [github.com/new](https://github.com/new)
-2. Create a new repository (can be public or private)
-3. **Don't** initialize it with a README, .gitignore, or license
+One issue with this state machine approach is that it creates a very small timing window under which players must execute combos. In order to go from `Punch 1` to `Punch 2` and from `Punch 2` to `Punch 3`, players must press the A button exactly within the 4 recovery frames of the previous punch.
 
-Then connect your local project and push:
+To make the inputs less forgiving, this game uses an input queue. Rather than handling inputs only when they arrive, received inputs are placed into a queue with a time-to-live value. The game then checks all inputs from the input queue and sees which are able to be applied at that instant.
 
-```bash
-git remote add origin git@github.com:YOUR_USERNAME/YOUR_REPO.git
-git push -u origin main
-```
+The result is that players can press the punch button slightly before the required timing window, and the game will still recognize the input as having been pressed, making it easy to execute the combo.
 
-The included GitHub Actions workflow will automatically deploy to RCade.
+## Bitmap Fonts
 
----
+<img src="./res/numbers28.png" width="60%" align="center">
 
-Made with <3 at [The Recurse Center](https://recurse.com)
+The RCade has a very small (and strange) resolution of 336x262. When rendering text on an HTML canvas of this size, the resulting text can appear very blurry.
+
+To fix this issue, I took the font I wanted and pre-rendered glyphs from that font into an image like the one seen above. Then I stored the location of where each glyph is inside the image.
+
+When the game goes to render a string using a bitmap font, it reads the string one character at a time and uses the character to determine which glyph (and therefore which subsection of the image) should be rendered.
+
+The end result is crisp, pixel-perfect font rendering.
